@@ -46,12 +46,13 @@ const VCH_SC_CFG={
   roadZ:[-1.797,-0.892,0.064,0.909,1.820],
   sprocketZ:-2.971, sprocketY:1.151, sprocketR:0.593,
   idlerZ:2.971,     idlerY:1.240,     idlerR:0.471,
-  /* Посадка ленты на ведущем колесе: 0 — по сплошному телу, 1 — по кончикам
-     зубьев. У модели Скорпиона ведущее колесо — тело r≈0.358 с десятью зубьями
-     высотой 10 см (до r≈0.458): при посадке 1 лента держалась на кончиках и до
-     тела оставалось 10 см пустоты. 0.45 — лента накрывает зубья до самых
-     кончиков (наружная грань трака ≈ r 0.459) и садится на них серединой. */
-  gearSeat:0.45,
+  /* Посадка ленты на ведущем колесе: 0 — по сплошному телу колеса,
+     1 — по кончикам зубьев. У модели ведущее колесо — тело r≈0.358 с десятью
+     зубьями высотой 10 см (до r≈0.458): при посадке 1 лента держалась на
+     кончиках и до тела оставалось 10.6 см пустоты. По умолчанию 0 — лента
+     ложится на само колесо, а зубья модельными вершинами сжимаются по радиусу
+     и уходят под трак (иначе проткнут его на 4 см). */
+  gearSeat:0,
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -386,7 +387,7 @@ function mountScorpion(src){
       if(!node||gearRigs.some(g=>g.node===node))continue;
       const {piv,lc,r,prof}=makePivot(node);
       const rTip=prof&&prof.tip||r,rBody=prof&&prof.body||rTip;
-      gearRigs.push({node,piv,drive,side:lc.z>0?-1:1,r,z:lc.x*s,y:lc.y*s,rTip,rBody});
+      gearRigs.push({node,piv,lc,drive,side:lc.z>0?-1:1,r,z:lc.x*s,y:lc.y*s,rTip,rBody});
     }
   }
   /* развёртка: у модели UV по узлам и с разным масштабом — плитка на корпусе
@@ -580,6 +581,51 @@ function mountScorpion(src){
   }
   /* Посадка ленты на шестернях: 0 — по сплошному телу колеса, 1 — по кончикам
      зубьев. Меняется на ходу: петля и число звеньев пересчитываются сами. */
+  /* Зубья модели вдвое выше трака: при посадке ленты на тело колеса они
+     проткнут её наизнанку. Поэтому вершины выше тела сжимаются по радиусу —
+     зубец сохраняет форму, но становится ниже наружной грани трака и целиком
+     уходит под ленту. Оригинал positions хранится: посадку можно крутить
+     туда-обратно, при k>=1 геометрия возвращается как была. */
+  const VCH_PLATE=.025;                    // половина толщины плиты трака
+  function scGearShape(){
+    for(const g of gearRigs){
+      const body=(g.rBody||0)/s,tip=(g.rTip||0)/s;
+      const limit=(g.r+Kt.trackShoe*.5+VCH_PLATE-.012)/s;
+      const span=tip-body;
+      if(span<1e-6||body<1e-6)continue;
+      const k=Te.clamp((limit-body)/span,0,1);
+      shrinkRadial(g.piv,g.lc,body,tip,k);
+    }
+  }
+  function shrinkRadial(node,lc,body,tip,k){
+    const M4c=src.matrixWorld.constructor;
+    const inv=new M4c().copy(modelRoot.matrixWorld).invert();
+    node.updateWorldMatrix(!0,!0);
+    node.traverse(ch=>{
+      if(!ch.isMesh||!ch.geometry||!ch.geometry.attributes.position)return;
+      if(!ch.userData.__vchOrig){
+        ch.geometry=ch.geometry.clone();
+        ch.userData.__vchOrig=ch.geometry.attributes.position.array.slice(0);
+      }
+      const pos=ch.geometry.attributes.position,arr=pos.array,orig=ch.userData.__vchOrig;
+      const toRoot=new M4c().multiplyMatrices(inv,ch.matrixWorld);
+      const back=new M4c().copy(toRoot).invert();
+      const v=new P();
+      for(let i=0;i<pos.count;i++){
+        const i3=i*3;
+        v.set(orig[i3],orig[i3+1],orig[i3+2]).applyMatrix4(toRoot);
+        const dx=v.x-lc.x,dy=v.y-lc.y,r=Math.hypot(dx,dy);
+        if(r>body&&k<1){
+          const rr=body+(r-body)*k,m=rr/(r||1e-6);
+          v.x=lc.x+dx*m;v.y=lc.y+dy*m;v.applyMatrix4(back);
+          arr[i3]=v.x;arr[i3+1]=v.y;arr[i3+2]=v.z;
+        }else{arr[i3]=orig[i3];arr[i3+1]=orig[i3+1];arr[i3+2]=orig[i3+2]}
+      }
+      pos.needsUpdate=!0;
+      ch.geometry.computeVertexNormals();
+      ch.geometry.computeBoundingBox();ch.geometry.computeBoundingSphere();
+    });
+  }
   function scGearSeat(k){
     const v=Te.clamp(+k,0,1);
     C.gearSeat=v;
@@ -589,6 +635,7 @@ function mountScorpion(src){
       const tp=(typeof g.rTip==="number"&&g.rTip>0)?g.rTip:g.r;
       g.r=b+(tp-b)*v;
     }
+    scGearShape();
     for(const t of trackGroups){t.linkCount=0;scRoller(t)}
     return v;
   }
