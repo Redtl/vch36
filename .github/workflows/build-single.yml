@@ -1,0 +1,98 @@
+name: Сборка одного файла
+
+# Что делает:
+#   1. Проверяет синтаксис всех js-файлов (node --check).
+#   2. Собирает dist/vch36.single.html (tools/build-single.py) — один файл
+#      со всем: код, модели, HDRI, звук. Его можно скачать из запуска Actions,
+#      он открывается с file:// без сервера.
+#   3. Если публикация включена — выкладывает dist/ на GitHub Pages.
+#
+# Публикация включается двумя способами:
+#   · вручную: Actions → этот workflow → Run workflow → галка «Опубликовать
+#     на GitHub Pages»;
+#   · автоматически: Settings → Secrets and variables → Actions → Variables →
+#     создать переменную PAGES = true (тогда deploy идёт на каждый пуш).
+# Для Pages сам репозиторий должен быть публичным (или у аккаунта платный
+# план — Pages на приватных репозиториях бесплатно не работает), и в
+# Settings → Pages → Source должно стоять «GitHub Actions».
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Опубликовать на GitHub Pages"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-single
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Проверка синтаксиса js
+        run: |
+          fail=0
+          for f in js/*.js data/*.js vendor/*.js sw.js; do
+            node --check "$f" || { echo "::error file=$f::синтаксическая ошибка"; fail=1; }
+          done
+          exit $fail
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Сборка одного файла
+        run: python3 tools/build-single.py dist/vch36.single.html
+
+      - name: Размер сборки
+        run: |
+          ls -lh dist/
+          test -s dist/vch36.single.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vch36-single-html
+          path: dist/vch36.single.html
+          retention-days: 30
+
+  deploy:
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy || vars.PAGES == 'true' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Сборка одного файла
+        run: python3 tools/build-single.py dist/vch36.single.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
