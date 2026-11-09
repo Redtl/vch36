@@ -18,16 +18,17 @@
 
 | ассет | где лежит | источник | лицензия |
 |---|---|---|---|
-| Локация «Александровск» (`aleksandrovsk_mm.glb`) | `data/aleksandrovsk-glb.js`, `data/aleksandrovsk-heightfield.js` | Sketchfab, автор **DageLV** | **CC-BY-4.0** — требуется указание автора |
-| Локация «Карта 01» (`map_01.glb`) | `data/map01-glb.js`, `data/map01-heightfield.js` | `map_full.glb` / `map_01.glb` из проекта | **уточнить** |
-| Модель Scorpion (`Scorpion4.glb`) | `data/scorpion-glb.js` | — | **уточнить** |
+| Локация «Александровск» (`aleksandrovsk_mm.glb`) | `data/aleksandrovsk-glb.js`, `data/aleksandrovsk-heightfield.js` | Sketchfab, автор **DageLV**; копия исходника — `github.com/Redtl/map3` | **CC-BY-4.0** — требуется указание автора |
+| Локация «Карта 01» (`map_01.glb`) | `data/map01-glb.js`, `data/map01-heightfield.js` | исходник — `github.com/Redtl/map2` (`map_01.glb`) | свой репозиторий, лицензию указать по желанию |
+| Модель Scorpion (`Scorpion4.glb`) | `data/scorpion-glb.js` | исходник — `github.com/Redtl/scorpion4` (`Scorpion4.glb`) | свой репозиторий, лицензию указать по желанию |
 | Небо карты 01 | `data/map01-sky-hdri.js` | Poly Haven, `industrial_sunset_02_puresky` | **CC0** |
 | Панорама рассвета | `data/sunrise-sky-hdri.js` | Poly Haven, `qwantani_sunrise_puresky` (4K) | **CC0** |
 
-Две позиции помечены «уточнить»: в исходном монолите ссылки на источник для
-них не сохранились. Если модели брались со Sketchfab или другого стока,
-нужно дописать автора и лицензию — иначе публиковать репозиторий открыто
-нельзя.
+Позиции «карта 01» и «Scorpion» закрыты: по именам файлов исходники
+нашлись в ваших же репозиториях `Redtl/map2` (`map_01.glb`) и
+`Redtl/scorpion4` (`Scorpion4.glb`), модель Александровска — в `Redtl/map3`
+(`aleksandrovsk_mm.glb`, оригинал DageLV). Сверьте, что это те самые версии,
+и при желании укажите для своих моделей лицензию.
 
 ## Звук
 

@@ -177,44 +177,23 @@ three.js и cannon-es (MIT), панорамы Poly Haven (CC0), модель «�
 
 ---
 
-## Как выложить на GitHub
+## Репозиторий
 
-Репозиторий уже инициализирован (`git init` + первый коммит сделаны).
-Дальше — два пути.
-
-### Путь 1: через `gh` (GitHub CLI)
+**<https://github.com/Redtl/vch36>** — приватный, ветка `main`,
+2 коммита, 43 файла, 21.8 МБ.
 
 ```bash
+git clone https://github.com/Redtl/vch36.git
 cd vch36
-gh auth login                       # один раз, по браузеру
-gh repo create vch36 --public --source=. --remote=origin --push
-#   вместо --public можно --private; имя vch36 — на ваше усмотрение
+# дальше: правите файлы → коммитите → пушите как обычно
+git add -A && git commit -m "что изменилось" && git push
 ```
 
-### Путь 2: вручную
+Если захотите играть прямо с GitHub: Settings → Pages → Deploy from branch →
+`main` / root. Получится `https://Redtl.github.io/vch36/` (для приватного
+репозитория Pages нужен платный план; иначе переключите репозиторий
+в публичный).
 
-1. Создайте пустой репозиторий на github.com (**без** README, `.gitignore`
-   и лицензии — они уже есть в проекте).
-2.
-
-```bash
-cd vch36
-git remote add origin git@github.com:USERNAME/vch36.git
-git branch -M main
-git push -u origin main
-```
-
-Если используете HTTPS вместо SSH: `https://github.com/USERNAME/vch36.git`
-(понадобится personal access token вместо пароля).
-
-### Что проверить после пуша
-
-* Размер: репозиторий ~21 МБ, самый большой файл
-  `data/aleksandrovsk-glb.js` — 8.9 МБ. Это ниже предупреждения GitHub
-  (50 МБ), LFS не нужен.
-* GitHub Pages: если захотите играть прямо с него, Settings → Pages →
-  Deploy from branch → `main` / root. Получится
-  `https://USERNAME.github.io/vch36/`. Service Worker там тоже заработает.
-* Атрибуция: перед тем как делать репозиторий публичным, вычитайте
-  [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) — там две позиции
-  помечены «уточнить».
+Файлов больше не станет: `data/` — автогенерация, она не растёт от правок
+кода, а самый большой файл (8.9 МБ) далёк от limits GitHub (100 МБ),
+поэтому Git LFS не нужен.
