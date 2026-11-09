@@ -95,8 +95,10 @@ vch36/
 │   ├── 19-look.js          рефлексы (IBL), потёртости брони, ливреи
 │   └── 90-sunrise.js       РАССВЕТ: HDRI, свет, аэрозольный туман, панель F
 ├── tools/
-│   └── build-single.py     сборка обратно в один HTML (для раздачи)
-└── dist/                   результат сборки (в git не идёт)
+│   ├── build-single.py       сборка обратно в один HTML (для раздачи)
+│   └── split-from-single.py  одноразовый инструмент миграции: режет
+│                             исходный монолит на файлы (уже выполнен)
+└── dist/                   результат build-single.py (в git не идёт)
 ```
 
 ### Почему classic-скрипты, а не ES-модули
@@ -172,3 +174,47 @@ python3 tools/build-single.py out.html   # свой путь
 three.js и cannon-es (MIT), панорамы Poly Haven (CC0), модель «Александровск»
 (Sketchfab · DageLV · CC-BY-4.0). Перед публикацией репозитория в открытый
 доступ этот список стоит вычитать.
+
+---
+
+## Как выложить на GitHub
+
+Репозиторий уже инициализирован (`git init` + первый коммит сделаны).
+Дальше — два пути.
+
+### Путь 1: через `gh` (GitHub CLI)
+
+```bash
+cd vch36
+gh auth login                       # один раз, по браузеру
+gh repo create vch36 --public --source=. --remote=origin --push
+#   вместо --public можно --private; имя vch36 — на ваше усмотрение
+```
+
+### Путь 2: вручную
+
+1. Создайте пустой репозиторий на github.com (**без** README, `.gitignore`
+   и лицензии — они уже есть в проекте).
+2.
+
+```bash
+cd vch36
+git remote add origin git@github.com:USERNAME/vch36.git
+git branch -M main
+git push -u origin main
+```
+
+Если используете HTTPS вместо SSH: `https://github.com/USERNAME/vch36.git`
+(понадобится personal access token вместо пароля).
+
+### Что проверить после пуша
+
+* Размер: репозиторий ~21 МБ, самый большой файл
+  `data/aleksandrovsk-glb.js` — 8.9 МБ. Это ниже предупреждения GitHub
+  (50 МБ), LFS не нужен.
+* GitHub Pages: если захотите играть прямо с него, Settings → Pages →
+  Deploy from branch → `main` / root. Получится
+  `https://USERNAME.github.io/vch36/`. Service Worker там тоже заработает.
+* Атрибуция: перед тем как делать репозиторий публичным, вычитайте
+  [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) — там две позиции
+  помечены «уточнить».
