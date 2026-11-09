@@ -793,6 +793,34 @@ window.__vchNight = {
   };
   mkPage(FOG, true);
   mkPage(LIT, false);
+  /* ---- вкладка 3: посадка ленты Скорпиона на ведущем колесе ---- */
+  mkTab("ГУСЕНИЦА");
+  const scPage = document.createElement("div");
+  scPage.style.display = "none";
+  scPage.innerHTML = '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin-bottom:9px">'
+    + 'посадка ленты на ведущем колесе Скорпиона:<br>'
+    + '<b style="color:#cfd6dc">0</b> — по сплошному телу колеса, '
+    + '<b style="color:#cfd6dc">1</b> — по кончикам зубьев.<br>'
+    + 'Значение хранится в браузере.</div>';
+  const scRow = document.createElement("div");
+  scRow.style.cssText = "margin-bottom:7px";
+  scRow.innerHTML = '<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
+    + 'letter-spacing:.08em;margin-bottom:3px"><span>ПОСАДКА</span><span style="color:#ffc75a"></span></div>';
+  const scInp = document.createElement("input");
+  scInp.type = "range"; scInp.min = 0; scInp.max = 1; scInp.step = 0.01;
+  scInp.style.cssText = "width:100%;margin:0;accent-color:#ff8a22;cursor:pointer";
+  scInp.value = (window.__scorpCfg && typeof window.__scorpCfg.gearSeat === "number")
+    ? window.__scorpCfg.gearSeat : 0.45;
+  scRow.querySelector("span:last-child").textContent = (+scInp.value).toFixed(2);
+  scInp.addEventListener("input", ()=>{
+    const v = parseFloat(scInp.value);
+    for(const R of (window.__vchScRigs||[])) R.seat(v);
+    if(window.__scorpCfg) window.__scorpCfg.gearSeat = v;
+    scRow.querySelector("span:last-child").textContent = v.toFixed(2);
+  });
+  scRow.appendChild(scInp);
+  scPage.appendChild(scRow);
+  box.appendChild(scPage); pages.push(scPage);
 
   function sync(){
     for(const r of rows){

@@ -46,6 +46,12 @@ const VCH_SC_CFG={
   roadZ:[-1.797,-0.892,0.064,0.909,1.820],
   sprocketZ:-2.971, sprocketY:1.151, sprocketR:0.593,
   idlerZ:2.971,     idlerY:1.240,     idlerR:0.471,
+  /* Посадка ленты на ведущем колесе: 0 — по сплошному телу, 1 — по кончикам
+     зубьев. У модели Скорпиона ведущее колесо — тело r≈0.358 с десятью зубьями
+     высотой 10 см (до r≈0.458): при посадке 1 лента держалась на кончиках и до
+     тела оставалось 10 см пустоты. 0.45 — лента накрывает зубья до самых
+     кончиков (наружная грань трака ≈ r 0.459) и садится на них серединой. */
+  gearSeat:0.45,
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -322,31 +328,49 @@ function mountScorpion(src){
      из-за этого лента шла на 5-14 см снаружи катков и шестерён. */
   const M4p=src.matrixWorld.constructor;
   const vRim=new P();
-  const rimR=(node,lc)=>{
+  /* Два радиуса одного колеса. tip — крайние вершины (98-й процентиль, как и
+     раньше). body — сплошная поверхность: 20-й процентиль максимумов по 36
+     угловым секторам, то есть радиус, под которым материал есть почти везде.
+     У гладкого колеса они совпадают, у ведущего между ними — зубец, и ставить
+     ленту по tip значит держать её на кончиках зубьев с пустотой до тела. */
+  const rimR=(node,lc,prof)=>{
     const rs=[];
+    const NB=36,bmax=new Array(NB).fill(-1);
     node.updateWorldMatrix(!0,!0);
     node.traverse(ch=>{
       if(!ch.isMesh||!ch.geometry||!ch.geometry.attributes.position)return;
       const pos=ch.geometry.attributes.position;
-      for(let i=0;i<pos.count;i+=2){
+      for(let i=0;i<pos.count;i++){
         vRim.fromBufferAttribute(pos,i).applyMatrix4(ch.matrixWorld);
         modelRoot.worldToLocal(vRim);
-        rs.push(Math.hypot(vRim.x-lc.x,vRim.y-lc.y));
+        const dx=vRim.x-lc.x,dy=vRim.y-lc.y,r=Math.hypot(dx,dy);
+        rs.push(r);
+        const b=Math.floor((((Math.atan2(dy,dx)+Math.PI*2)%(Math.PI*2))/(Math.PI*2))*NB)%NB;
+        if(r>bmax[b])bmax[b]=r;
       }
     });
     if(!rs.length)return 0;
     rs.sort((a,b)=>a-b);
-    return rs[Math.min(rs.length-1,Math.floor(rs.length*.98))]*s;
+    const tip=rs[Math.min(rs.length-1,Math.floor(rs.length*.98))]*s;
+    const nz=bmax.filter(v=>v>=0).sort((a,b)=>a-b);
+    let body=tip;
+    if(nz.length>=12){
+      const b20=nz[Math.floor(nz.length*.20)]*s;
+      body=Math.min(tip,Math.max(b20,nz[0]*s));
+    }
+    if(prof){prof.tip=tip;prof.body=body}
+    return tip;
   };
   const makePivot=node=>{
     const d=discOf(node)||node;
     const bb=new Xe().setFromObject(d),c=bb.getCenter(new P()),sz=bb.getSize(new P());
     const lc=modelRoot.worldToLocal(c.clone());
-    const rGeo=rimR(node,lc);
+    const prof={};
+    const rGeo=rimR(node,lc,prof);
     const piv=new Jt();piv.position.copy(lc);
     modelRoot.add(piv);modelRoot.updateMatrixWorld(!0);
     piv.attach(node);modelRoot.updateMatrixWorld(!0);
-    return {piv,lc,r:rGeo||Math.min(sz.y,sz.z)*.5};
+    return {piv,lc,r:rGeo||Math.min(sz.y,sz.z)*.5,prof};
   };
   const wheelRigs=[];
   for(const w of wheels){
@@ -360,8 +384,9 @@ function mountScorpion(src){
   for(const [list,drive] of [[sprockets,1],[idlers,0]]){
     for(const node of list){
       if(!node||gearRigs.some(g=>g.node===node))continue;
-      const {piv,lc,r}=makePivot(node);
-      gearRigs.push({node,piv,drive,side:lc.z>0?-1:1,r,z:lc.x*s,y:lc.y*s});
+      const {piv,lc,r,prof}=makePivot(node);
+      const rTip=prof&&prof.tip||r,rBody=prof&&prof.body||rTip;
+      gearRigs.push({node,piv,drive,side:lc.z>0?-1:1,r,z:lc.x*s,y:lc.y*s,rTip,rBody});
     }
   }
   /* развёртка: у модели UV по узлам и с разным масштабом — плитка на корпусе
@@ -524,20 +549,13 @@ function mountScorpion(src){
   const SC_UP=.15,SC_DN=-.15;                       // ход подвески Скорпиона, м
   const scV=new P(),scN=new P(),scT=new P(),scX=new P();
   const scMat=new M4sc(),scQuat=new gn(),scP={x:0,y:0,z:0,nz:0,ny:0,tx:0,ty:0,tz:1};
-  for(const t of trackGroups){
-    const gs=gearRigs.filter(x=>x.side===t.side);
-    t.idler=gs.find(x=>!x.drive);
-    t.sprocket=gs.find(x=>x.drive);
-    t.wheels=wheelRigs.filter(w=>w.side===t.side).sort((a,b)=>b.z-a.z);  // z по убыванию
-    t.C=Pw(1+t.wheels.length+2);
-    t.buf=Cw();
-    t.sampler=null;t.pitch=.17;t.linkCount=0;
-    t.tension=new Float64Array(t.wheels.length+2);
-    t.dummy=new ue();
     /* Lw() без возвратных роликов не умеет: подставляем один «ролик» нулевого
-       радиуса ровно на линию верхней касательной — верхняя ветвь остаётся
-       прямой, а код остаётся тем же, что у ОБТ */
+     радиуса ровно на линию верхней касательной — верхняя ветвь остаётся
+     прямой, а код остаётся тем же, что у ОБТ. Считается заново при смене
+     посадки ленты: от радиусов шестерён зависит и эта линия. */
+  function scRoller(t){
     const id=t.idler,sp=t.sprocket;
+    if(!id||!sp)return;
     const dz=sp.z-id.z,dy=sp.y-id.y,d=Math.hypot(dz,dy)||1;
     const al=Math.asin(Te.clamp((id.r-sp.r)/d,-1,1));
     const ux=dz/d,uy=dy/d,ca=Math.cos(al),sa=Math.sin(al);
@@ -548,6 +566,35 @@ function mountScorpion(src){
           p2z=sp.z+sp.r*nx,p2y=sp.y+sp.r*ny;
     t.roller={z:(p1z+p2z)*.5,y:(p1y+p2y)*.5,r:.0015};
   }
+  for(const t of trackGroups){
+    const gs=gearRigs.filter(x=>x.side===t.side);
+    t.idler=gs.find(x=>!x.drive);
+    t.sprocket=gs.find(x=>x.drive);
+    t.wheels=wheelRigs.filter(w=>w.side===t.side).sort((a,b)=>b.z-a.z);  // z по убыванию
+    t.C=Pw(1+t.wheels.length+2);
+    t.buf=Cw();
+    t.sampler=null;t.pitch=.17;t.linkCount=0;
+    t.tension=new Float64Array(t.wheels.length+2);
+    t.dummy=new ue();
+    scRoller(t);
+  }
+  /* Посадка ленты на шестернях: 0 — по сплошному телу колеса, 1 — по кончикам
+     зубьев. Меняется на ходу: петля и число звеньев пересчитываются сами. */
+  function scGearSeat(k){
+    const v=Te.clamp(+k,0,1);
+    C.gearSeat=v;
+    try{localStorage.setItem("vch.scSeat",String(v))}catch(e){}
+    for(const g of gearRigs){
+      const b=(typeof g.rBody==="number"&&g.rBody>0)?g.rBody:g.rTip;
+      const tp=(typeof g.rTip==="number"&&g.rTip>0)?g.rTip:g.r;
+      g.r=b+(tp-b)*v;
+    }
+    for(const t of trackGroups){t.linkCount=0;scRoller(t)}
+    return v;
+  }
+  try{const sv=localStorage.getItem("vch.scSeat");if(sv!=null&&isFinite(+sv))C.gearSeat=Te.clamp(+sv,0,1)}catch(e){}
+  scGearSeat(C.gearSeat);
+  (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat});
   const D={trackOffsetL:0,trackOffsetR:0,recoil:0,recoilVel:0,wheelDrop:0};
   /* Круги для Lw(): порядок как у ОБТ — ленивец, катки, ведущее, «ролик» */
   function scFill(t){
@@ -714,11 +761,17 @@ function mountScorpion(src){
               turret:A.turret.name,barrel:A.barrel.name,wheels:wheelRigs.length,xc,groundModel,
               radii:wheelRigs.slice(0,2).map(w=>+w.r.toFixed(3)).concat(gearRigs.map(g=>+g.r.toFixed(3))),
               lift:D.lift===undefined?null:+D.lift.toFixed(3),
+              gearSeat:+C.gearSeat.toFixed(3),
+              gearRadii:gearRigs.map(g=>({side:g.side,drive:!!g.drive,
+                r:+g.r.toFixed(3),tip:+(g.rTip||0).toFixed(3),body:+(g.rBody||0).toFixed(3)})),
               /* длина петли — из живого солвера (до первого кадра — оценка по оболочке) */
               get trackLen(){const g=trackGroups[0];
                 const v=g&&g.sampler?g.sampler.total:(bandPaths[-1]||vchScBelt(circlesNow(),.1)).total;
                 return +v.toFixed(2)},
               bandPath:!!bandPaths[-1]};
+  window.__vchScSeat=v=>({seat:scGearSeat(v),
+    gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
+      tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});
   return {group,chassis,turret,turretStab,gunPivot,recoilGroup,muzzlePoint,muzzle:muzzlePoint,
           casePort,caseFlap,
           tracks:{left:{userData:{update(){}}},right:{userData:{update(){}}}},
