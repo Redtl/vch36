@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ОБТ «36» — Александровск · рассвет</title>
+  <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
+       видимости classic-скриптов, defer = прежнее поведение type="module"). -->
+  <link rel="stylesheet" href="css/app.css" />
+    <!-- вендорный бандл: three.js (MIT) + cannon-es (MIT) -->
+    <script defer src="vendor/three-cannon.js"></script>
+
+    <!-- данные (генерируются, руками не править): подключаются ДО кода -->
+    <script defer src="data/aleksandrovsk-glb.js"></script>
+    <script defer src="data/aleksandrovsk-heightfield.js"></script>
+    <script defer src="data/map01-glb.js"></script>
+    <script defer src="data/map01-heightfield.js"></script>
+    <script defer src="data/map01-sky-hdri.js"></script>
+    <script defer src="data/scorpion-glb.js"></script>
+    <script defer src="data/sunrise-sky-hdri.js"></script>
+
+    <!-- код: порядок загрузки обязателен (общая область видимости
+         classic-скриптов: 06a -> 06c -> 06b -> 06e -> 06d) -->
+    <script defer src="js/01-core.js"></script>
+    <script defer src="js/02-tank.js"></script>
+    <script defer src="js/03-dynamics.js"></script>
+    <script defer src="js/04-visual.js"></script>
+    <script defer src="js/05-cases.js"></script>
+    <script defer src="js/06-world.js"></script>
+    <script defer src="js/06a-aleksandrovsk-data.js"></script>
+    <script defer src="js/06c-map01-sky-data.js"></script>
+    <script defer src="js/06b-map01.js"></script>
+    <script defer src="js/06e-aleksandrovsk.js"></script>
+    <script defer src="js/06d-map01-look.js"></script>
+    <script defer src="js/07a-audio-pcm.js"></script>
+    <script defer src="js/07-audio.js"></script>
+    <script defer src="js/08-scorpion.js"></script>
+    <script defer src="js/09-fleet.js"></script>
+    <script defer src="js/10-ai.js"></script>
+    <script defer src="js/11-rockets.js"></script>
+    <script defer src="js/12-drive.js"></script>
+    <script defer src="js/13-range.js"></script>
+    <script defer src="js/14-track.js"></script>
+    <script defer src="js/15-battle.js"></script>
+    <script defer src="js/16-ui.js"></script>
+    <script defer src="js/17-cam.js"></script>
+    <script defer src="js/18-boot.js"></script>
+    <script defer src="js/19-look.js"></script>
+    <script defer src="js/90-sunrise.js"></script>
+  </head>
+
+<body>
+  <canvas id="app"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="scope" class="off">
+      <div class="scope-mask"></div>
+      <div class="scope-rings"></div>
+      <div class="scope-mil"></div>
+      <div class="scope-info">
+        <div class="r"><span>ДАЛЬНОСТЬ</span><b id="range">— м</b></div>
+        <div class="r"><span>ПРИВОД ГОН</span><b>СТАБ</b></div>
+      </div>
+      <div id="zoomread" class="off">×1.0</div>
+    </div>
+
+    <div id="crosshair">
+      <div class="ch-v"></div>
+      <div class="ch-h"></div>
+      <div class="ch-ring"></div>
+      <div class="ch-dot"></div>
+    </div>
+
+    <!-- own pointer marker: replaces the OS cursor, which is hidden in gameplay -->
+    <div id="aimdot"><svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 1.5v6M13 18.5v6M1.5 13h6M18.5 13h6"/><circle cx="13" cy="13" r="1.8"/></svg></div>
+
+    <div id="topbar">
+      <div class="brand">
+        <div class="brand-line">ОБТ&nbsp;«36»</div>
+        <div class="brand-sub">Т-36М «ГРОЗА» · 125&nbsp;мм&nbsp;2А82</div>
+      </div>
+      <div class="right-badges">
+        <div id="camlabel">ВИД: КОМАНДИРСКИЙ</div>
+        <div id="aimmode">НАВЕДЕНИЕ: КУРСОР</div>
+        <div id="maplabel">ЛОКАЦИЯ: ПОЛИГОН</div>
+      </div>
+    </div>
+
+    <div id="bottomleft">
+      <div class="gauge">
+        <div class="gauge-label">СКОРОСТЬ</div>
+        <div class="gauge-row"><span id="speed">0</span><span class="unit">км/ч</span></div>
+        <div class="bar"><i id="speedbar"></i></div>
+        <div class="small" id="gear">НЕЙТРАЛЬ</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-label">ГУСЕНИЦЫ (Л/П)</div>
+        <div class="trackbars">
+          <div class="tbar"><i id="trackL"></i></div>
+          <div class="tbar"><i id="trackR"></i></div>
+        </div>
+        <div class="small" id="engine">ДВИГАТЕЛЬ: ХОЛОСТОЙ ХОД</div>
+      </div>
+    </div>
+
+    <div id="bottomright">
+      <div id="reloadwrap">
+        <div class="gauge-label">АВТОМАТ ЗАРЯЖАНИЯ</div>
+        <div class="bar big"><i id="reloadbar"></i></div>
+        <div class="small" id="reloadtext">ГОТОВ К ВЫСТРЕЛУ</div>
+      </div>
+      <div class="ammo">
+        <div class="gauge-label">БОЕКОМПЛЕКТ</div>
+        <div class="ammo-row">
+          <span class="shell-icon">▲</span>
+          <span id="ammo">22</span><span class="unit">/ 22</span>
+          <span class="ammo-type">БОПС</span>
+        </div>
+      </div>
+      <div class="aimread">
+        <span>АЗ <b id="az">0°</b></span>
+        <span>УВ <b id="el">0°</b></span>
+      </div>
+    </div>
+
+
+    <!-- 1.1: приборы (спидометр + тахометр), индикатор передачи, мини-карта -->
+    <div id="gearind"><b id="gearval">Н</b><span>ПЕРЕДАЧА</span></div>
+    <div id="instruments"><canvas id="dials" width="312" height="132"></canvas></div>
+    <div id="minimapwrap"><canvas id="minimap" width="196" height="196"></canvas><span class="mm-lbl">КАРТА · 240 М</span></div>
+
+    <!-- 3.1: панель стрельбища -->
+    <div id="rangepanel" class="hidden">
+      <div>СЧЁТ<b id="rscore">0</b></div>
+      <div>ВРЕМЯ<b id="rtime">0.0</b></div>
+      <div>ЦЕЛИ<b id="rleft">0/0</b></div>
+      <div>ТОЧНОСТЬ<b id="racc">—</b></div>
+      <div class="rp-hint">P — заново · Esc — стоп</div>
+    </div>
+
+    <!-- 6.2: затемнение при смене локации / перезапуске -->
+    <div id="fade"></div>
+
+    <!-- 6.3: тач-управление (только на сенсорных экранах) -->
+    <div id="touch" class="hidden">
+      <div id="tstick"><i id="tknob"></i></div>
+      <button id="tfire">ОГОНЬ</button>
+      <button id="tmenu">II</button>
+      <button id="tcams">ВИД</button>
+    </div>
+
+    <!-- 3.3: бой с ИИ-танками -->
+    <div id="battlepanel" class="hidden">
+      <div>ПРОТИВНИКИ<b id="benem">0/0</b></div>
+      <div>ПРОЧНОСТЬ<b id="bhp">100</b></div>
+      <div class="hpbar"><i id="bhpbar"></i></div>
+      <div>ВРЕМЯ<b id="btime">0.0</b></div>
+      <div class="rp-hint">B — заново · Esc — стоп</div>
+    </div>
+
+    <div id="battleover" class="hidden">
+      <div class="ro-card">
+        <h2 id="bo-title">БОЙ</h2>
+        <div class="ro-why" id="bo-why">ЗАВЕРШЕНО</div>
+        <div class="ro-grid">
+          <div>ВРЕМЯ<b id="bo-time">0.0 с</b></div>
+          <div>УНИЧТОЖЕНО<b id="bo-kills">0</b></div>
+          <div>ТОЧНОСТЬ<b id="bo-acc">—</b></div>
+        </div>
+        <div class="ro-btn"><button id="bo-again">ПОВТОРИТЬ (B)</button><button id="bo-close">ЗАКРЫТЬ (Esc)</button></div>
+      </div>
+    </div>
+
+    <!-- 3.2: панель трассы -->
+    <div id="trackpanel" class="hidden">
+      <div>ВОРОТА<b id="tgate">1/10</b></div>
+      <div>ВРЕМЯ<b id="ttime">0.0</b></div>
+      <div>ШТРАФ<b id="tpen">0 с</b></div>
+      <div class="rp-hint">K — заново · Esc — стоп</div>
+    </div>
+
+    <!-- 3.2: результат заезда по трассе -->
+    <div id="trackover" class="hidden">
+      <div class="ro-card">
+        <h2>ТРАССА</h2>
+        <div class="ro-why" id="to-why">ФИНИШ</div>
+        <div class="ro-grid">
+          <div>ВРЕМЯ<b id="to-time">0.0 с</b></div>
+          <div>ШТРАФ<b id="to-pen">0 с</b></div>
+          <div>РЕКОРД<b id="to-best">—</b></div>
+        </div>
+        <div class="ro-btn"><button id="to-again">ПОВТОРИТЬ (K)</button><button id="to-close">ЗАКРЫТЬ (Esc)</button></div>
+      </div>
+    </div>
+
+    <!-- 3.1: результаты заезда + таблица рекордов -->
+    <div id="rangeover" class="hidden">
+      <div class="ro-card">
+        <h2>СТРЕЛЬБИЩЕ</h2>
+        <div style="font-size:10px;letter-spacing:2px;color:#7d8d9a" id="ro-why">ЗАЕЗД ЗАВЕРШЁН</div>
+        <div class="ro-grid">
+          <div>СЧЁТ<b id="ro-score">0</b></div>
+          <div>ВРЕМЯ<b id="ro-time">0.0 с</b></div>
+          <div>ТОЧНОСТЬ<b id="ro-acc">—</b></div>
+        </div>
+        <div style="font-size:10px;letter-spacing:2px;color:#7cd47f" id="ro-best"></div>
+        <table><thead><tr><th>#</th><th>СЧЁТ</th><th>ВРЕМЯ</th><th>ДАТА</th></tr></thead>
+        <tbody id="ro-table"></tbody></table>
+        <div class="ro-btn"><button id="ro-again">ПОВТОРИТЬ (P)</button><button id="ro-close">ЗАКРЫТЬ (Esc)</button></div>
+      </div>
+    </div>
+
+    <!-- 1.2/1.3: пауза, подсказки управления, громкость -->
+    <div id="pausemenu" class="hidden">
+      <div class="pm-card">
+        <h2>ПАУЗА</h2>
+        <div class="pm-sub">ESC — ПРОДОЛЖИТЬ</div>
+        <div class="pm-keys">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение</div>
+          <div><kbd>Мышь</kbd> — обзор / наведение</div>
+          <div><kbd>ЛКМ</kbd> / <kbd>Space</kbd> — выстрел</div>
+          <div><kbd>Shift</kbd> — ускорение</div>
+          <div><kbd>C</kbd> — смена камеры</div>
+          <div><kbd>Esc</kbd> — пауза / меню</div>
+          <div><kbd>P</kbd> — стрельбище</div>
+          <div><kbd>K</kbd> — трасса · <kbd>B</kbd> — бой</div>
+          <div><kbd>L</kbd> — окраска</div>
+        </div>
+        <div class="pm-row"><span>ГРОМКОСТЬ</span><input id="pm-vol" type="range" min="0" max="100" value="50"></div>
+        <div class="pm-row"><span>ДВИГАТЕЛЬ</span><input id="pm-eng" type="range" min="0" max="100" value="100"></div>
+        <div class="pm-row"><span>ВЫСТРЕЛЫ</span><input id="pm-shot" type="range" min="0" max="100" value="100"></div>
+        <div class="pm-row"><span>КАЧЕСТВО ГРАФИКИ</span>
+          <div class="seg" id="pm-q">
+            <button data-q="0">ВЫСОКОЕ</button><button data-q="2">СРЕДНЕЕ</button>
+            <button data-q="3">НИЗКОЕ</button><button data-q="auto">АВТО</button>
+          </div></div>
+        <div class="pm-row"><span>ЧУВСТВИТЕЛЬНОСТЬ МЫШИ</span>
+          <input id="pm-sens" type="range" min="30" max="250" value="100">
+          <b id="pm-sensv">1.00</b></div>
+        <div class="pm-row"><span>ЛОКАЦИЯ</span>
+          <div class="seg" id="pm-map">
+            <button data-map="polygon">ПОЛИГОН</button><button data-map="sandbox">ПЕСОЧНИЦА</button>
+            <button data-map="space">КОСМОС</button>
+          </div></div>
+        <div class="pm-row"><span>ИЗНОС</span>
+          <div class="seg" id="pm-wear">
+            <button data-wear="0">ВЫКЛ</button><button data-wear="0.5">СЛАБЫЙ</button><button data-wear="1">НОРМА</button>
+          </div></div>
+        <div class="pm-row"><span>ОКРАСКА</span>
+          <div class="seg" id="pm-liv">
+            <button data-liv="amber">ЯНТАРЬ</button><button data-liv="khaki">ХАКИ</button><button data-liv="pink">РОЗОВЫЙ</button>
+          </div></div>
+        <div class="pm-btn">
+          <button id="pm-resume">ПРОДОЛЖИТЬ</button>
+          <button id="pm-range">СТРЕЛЬБИЩЕ</button>
+          <button id="pm-track">ТРАССА</button>
+          <button id="pm-battle">БОЙ</button>
+          <button id="pm-reset" class="warn">СБРОСИТЬ РЕКОРДЫ</button>
+        </div>
+        <div id="pm-build" style="margin-top:12px;font-size:9px;letter-spacing:2px;color:#61707d"></div>
+      </div>
+    </div>
+    <div id="help">
+      <b>W / S</b> — ход · <b>A / D</b> — поворот (дифференциал) · <b>ПКМ + мышь</b> — обзор камеры<br />
+      <b>наведи курсор на цель</b> — башня и орудие доворачиваются сами · <b>ЛКМ / Пробел</b> — выстрел<br />
+      <b>1 / 2 / 3</b> — камера · <b>колесо</b> — зум · <b>T</b> — наведение курсором / захват мыши<br />
+      <b>Z / X</b> — поворот башни влево / вправо (плавно, с клавиатуры)<br />
+      <b>V</b> — стабилизатор · <b>H</b> — справка · <b>R</b> — перезапуск<br />
+      <b>Shift</b> — ускорение · <b>C</b> — смена камеры · <b>Esc</b> — пауза · <b>P</b> — стрельбище<br />
+      <b>K</b> — трасса · <b>B</b> — бой с ИИ · <b>G</b> — маркер мыши · <b>O</b> — своя модель (.glb) · <b>перетащить файл в окно</b> · <b>M</b> — панель модели · <b>L</b> — окраска
+    </div>
+
+    <div id="stabilizer" class="hidden-badge">СТАБИЛИЗАТОР ВКЛ</div>
+    <div id="liverybadge" class="hidden-badge off">ОКРАСКА: ЯНТАРЬ / ГРАФИТ</div>
+
+    <!-- панель своей модели -->
+    <div id="modeltools" class="hidden">
+      <div class="mt-head">
+        <span>СВОЯ МОДЕЛЬ</span>
+        <b id="mt-name">—</b>
+      </div>
+      <div id="mt-info">перетащите .glb в окно</div>
+      <label class="mt-row"><span>БАШНЯ</span><select id="mt-turret"></select></label>
+      <label class="mt-row"><span>СТВОЛ</span><select id="mt-barrel"></select></label>
+      <div class="mt-btns">
+        <button data-act="rot" title="повернуть модель на 90°">ПОВОРОТ 90°</button>
+        <button data-act="scale+">КРУПНЕЕ</button>
+        <button data-act="scale-">МЕЛЬЧЕ</button>
+        <button data-act="reset" class="warn">ПРОЦЕДУРНАЯ</button>
+      </div>
+      <div class="mt-hint">O — выбрать файл · M — скрыть панель</div>
+    </div>
+
+    <div id="fpsthing"></div>
+  </div>
+
+  <!-- файл модели (скрытый input) -->
+  <input type="file" id="modelfile" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" />
+
+  <!-- подсветка при перетаскивании модели -->
+  <div id="droplayer" class="hidden">
+    <div class="dl-box">
+      <b>ОТПУСТИТЕ ФАЙЛ</b>
+      <span>модель заменит процедурный танк: .glb или .gltf</span>
+    </div>
+  </div>
+
+  <!-- Start screen -->
+  <div id="start">
+    <div class="start-card">
+      <div class="tag">ИНТЕРАКТИВНАЯ 3D-МОДЕЛЬ · ФИЗИКА · ОРУДИЕ</div>
+      <div class="tag" style="color:#ffb45c">ЛОКАЦИЯ: <span id="mapname">ПОЛИГОН</span></div>
+      <h1>ОБТ «36»</h1>
+      <div class="sub">Тяжёлый основной боевой танк. Raycast-подвеска, дифференциальное управление гусеницами, откатный механизм орудия, физика снарядов.</div>
+      <div id="maprow" style="margin-top:22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <label for="mapselect" style="font-size:10px;letter-spacing:3px;color:#9fb0be">ВЫБРАТЬ ЛОКАЦИЮ</label>
+        <select id="mapselect" style="font-family:inherit;font-size:12px;letter-spacing:1.5px;color:#e7eef4;background:#182129;border:1px solid #3a4854;border-radius:4px;padding:9px 14px;cursor:pointer;min-width:230px">
+          <option value="polygon">ПОЛИГОН</option>
+          <option value="sandbox">ПЕСОЧНИЦА</option>
+          <option value="space">ПЕСОЧНИЦА · КОСМОС</option>
+          <option value="map01">КАРТА 01 (map_01.glb)</option>
+          <option value="aleksandrovsk">АЛЕКСАНДРОВСК (aleksandrovsk_mm.glb)</option>
+        </select>
+        <span id="startloc" style="font-size:10px;color:#6d7d8a;letter-spacing:1px"></span>
+      </div>
+      <button id="launch">ЗАПУСТИТЬ ДВИГАТЕЛЬ</button>
+      <div class="ctrl-grid">
+        <div><kbd>W</kbd><kbd>S</kbd> газ / задний ход</div>
+        <div><kbd>A</kbd><kbd>D</kbd> поворот, разворот на месте</div>
+        <div><kbd>Мышь</kbd> навести курсор на цель</div>
+        <div><kbd>Z</kbd><kbd>X</kbd> поворот башни (влево / вправо)</div>
+        <div><kbd>ЛКМ</kbd> / <kbd>Space</kbd> выстрел</div>
+        <div><kbd>ПКМ</kbd> свободный обзор камеры</div>
+        <div><kbd>T</kbd> режим наведения: курсор / захват мыши</div>
+        <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / <kbd>C</kbd> режимы камеры</div>
+        <div><kbd>Shift</kbd> ускорение</div>
+        <div><kbd>Esc</kbd> пауза и настройки</div>
+        <div><kbd>P</kbd> режим «Стрельбище»</div>
+        <div><kbd>V</kbd> стабилизатор вооружения</div>
+        <div><kbd>R</kbd> перезапуск сцены</div>
+        <div><kbd>O</kbd> загрузить свою модель (.glb)</div>
+        <div><kbd>Перетащить</kbd> .glb в окно</div>
+        <div><kbd>L</kbd> окраска: янтарь/графит ↔ хаки</div>
+      </div>
+      <div class="hint">Смена локации перезапускает сцену · Колёсико мыши — зум · Esc — освободить курсор.</div>
+    </div>
+  </div>
+</html>

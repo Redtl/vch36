@@ -1,0 +1,17 @@
+# сборка одного файла (tools/build-single.py)
+dist/
+
+# службы
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# редакторы
+.vscode/
+.idea/
+*.swp
+
+# логи
+*.log
