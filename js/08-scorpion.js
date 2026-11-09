@@ -53,6 +53,9 @@ const VCH_SC_CFG={
      ложится на само колесо, а зубья модельными вершинами сжимаются по радиусу
      и уходят под трак (иначе проткнут его на 4 см). */
   gearSeat:0,
+  /* Кронштейны катков (Gear_Low*) едут вместе с катками. Выключить — каток
+     снова поедет внутри неподвижного кронштейна. */
+  armMove:!0,
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -373,10 +376,32 @@ function mountScorpion(src){
     piv.attach(node);modelRoot.updateMatrixWorld(!0);
     return {piv,lc,r:rGeo||Math.min(sz.y,sz.z)*.5,prof};
   };
+  /* Каток в модели сидит в своём кронштейне: родитель диска Gear_Low*.001 —
+     это кронштейн Gear_Low*.002, прикреплённый к корпусу. Раньше пивот катка
+     вешался прямо на корпус и каток ездил вверх-вниз отдельно от кронштейна.
+     Теперь кронштейн получает свой пивот на корпусе, пивот катка становится
+     его ребёнком, и подвеска двигает весь узел целиком. */
+  const armRigs=[];
+  const armOfDisk=o=>{const a=o&&o.parent;return(a&&/gear/i.test(a.name||""))?a:null};
   const wheelRigs=[];
   for(const w of wheels){
+    const armNode=armOfDisk(w.o);
+    let arm=null;
+    if(armNode&&!armRigs.some(a=>a.node===armNode)){
+      const armLc=modelRoot.worldToLocal(armNode.getWorldPosition(new P()));
+      const armPiv=new Jt();armPiv.position.copy(armLc);armPiv.name="arm_piv_"+armNode.name;
+      modelRoot.add(armPiv);modelRoot.updateMatrixWorld(!0);
+      armPiv.attach(armNode);modelRoot.updateMatrixWorld(!0);
+      arm={piv:armPiv,lc:armLc,baseY:armLc.y,node:armNode};
+      armRigs.push(arm);
+    }else if(armNode)arm=armRigs.find(a=>a.node===armNode);
     const {piv,lc,r}=makePivot(w.o);
-    wheelRigs.push({piv,baseY:piv.position.y,r,side:lc.z>0?-1:1,
+    if(arm){
+      arm.piv.add(piv);
+      piv.position.set(lc.x-arm.lc.x,lc.y-arm.lc.y,lc.z-arm.lc.z);
+      modelRoot.updateMatrixWorld(!0);
+    }
+    wheelRigs.push({piv,arm,baseY:piv.position.y,r,side:lc.z>0?-1:1,
                     z:lc.x*s,y:lc.y*s,dy:0,dyT:0});
   }
   /* ведущее колесо (звёздочка) и ленивец: свои пивоты, чтобы крутились вместе
@@ -680,7 +705,11 @@ function mountScorpion(src){
       const w=W[i],tgt=Te.clamp(d[i+1],SC_DN,SC_UP),
             goal=w.dy+(tgt-w.dy)*alpha;
       w.dy=Te.clamp(Te.clamp(goal,w.dy-maxStep,w.dy+maxStep),SC_DN,SC_UP);
-      w.piv.position.y=w.baseY+w.dy/s;
+      /* двигаем весь узел: кронштейн на корпусе, каток — его ребёнок */
+      if(w.arm&&C.armMove!==!1){
+        w.arm.piv.position.y=w.arm.baseY+w.dy/s;
+        if(w.piv.position.y!==w.baseY)w.piv.position.y=w.baseY;
+      }else w.piv.position.y=(w.arm?w.baseY+w.dy/s:w.baseY+w.dy/s);
     }
   }
   /* Петля + линки: Lw() -> Iw() -> расстановка как в rt() у ОБТ */
@@ -816,6 +845,7 @@ function mountScorpion(src){
                 const v=g&&g.sampler?g.sampler.total:(bandPaths[-1]||vchScBelt(circlesNow(),.1)).total;
                 return +v.toFixed(2)},
               bandPath:!!bandPaths[-1]};
+  window.__vchScArm=on=>{C.armMove=!!on;return{armMove:C.armMove,arms:armRigs.length}};
   window.__vchScSeat=v=>({seat:scGearSeat(v),
     gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
       tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});
