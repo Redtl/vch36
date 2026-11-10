@@ -886,8 +886,13 @@ function mountScorpion(src){
     na.needsUpdate=!0;
     return 1;
   }
-  /* Bevel на всю модель, кроме колёс: у катков и звёздочек свой, более
-     агрессивный режим (smoothDeg), он накатывается поверх. */
+  /* Bevel на всю машину: и корпус (modelRoot), и башню со стволом — они при
+     монтировании перепривязываются из модели в свои узлы рига (turret /
+     gunPivot / recoilGroup), поэтому обход одного modelRoot их не видел:
+     обрабатывался 51 меш из 182, башня (105 мешей) оставалась без фаски.
+     Исключения: катки и звёздочки — у них свой, более агрессивный режим
+     (smoothDeg), он накатывается поверх; лента — у неё свой материал с
+     flatShading и процедурная геометрия, её вид не должен меняться. */
   function scApplyBevel(deg){
     C.bevelDeg=Te.clamp(+deg||0,0,150);
     try{localStorage.setItem("vch.scBevel",String(C.bevelDeg))}catch(e){}
@@ -896,8 +901,10 @@ function mountScorpion(src){
     for(const w of wheelRigs){ mark(w.piv); if(w.arm&&w.arm.node)mark(w.arm.node) }
     for(const g of gearRigs) mark(g.piv);
     const seen=new Set();let meshes=0;
-    modelRoot.traverse(o=>{
+    group.traverse(o=>{
       if(!o.isMesh||o.isInstancedMesh||!o.geometry||skip.has(o))return;
+      const M=Array.isArray(o.material)?o.material:[o.material];
+      if(M.some(m=>m&&m.flatShading))return;         /* лента */
       const id=o.geometry.uuid;if(seen.has(id))return;seen.add(id);
       meshes+=scBevelGeom(o,C.bevelDeg);
     });
