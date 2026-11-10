@@ -354,7 +354,44 @@ hatch(){}
 }
 function lh(){if(J.reload>0||J.ammo<=0){J.ammo<=0&&J.ammoRefill<=0&&an.clank();return}J.ammo--,J.reload=J.reloadTime,an.hatch(),qt.getMuzzle(Ii,ss);   /* 5.4: люк */const r=Ii.clone(),t=ss.clone().normalize();en.muzzleBurst(r,t,qt.getMuzzleBrakepoints(4)),an.fire(),qt.fireRecoil(1),Ce.applyRecoilImpulse(t,1),V_ejectSchedule(),Ls.push(new q1(r.clone().addScaledVector(t,.4),t,1650)),di=Math.min(1.5,di+.55),J.ammo===0&&(J.ammoRefill=8)}const J={started:!1,ammo:22,ammoMax:22,ammoRefill:0,reload:0,reloadTime:4.6,turretYaw:0,elevation:0,aimAzWorld:0,aimEl:0,aimMode:"cursor",cursor:{x:.5,y:.5},aimPoint:null,aimFrames:0,reticle:{x:.5,y:.5,visible:!0},stabilizer:!0,cameraMode:0,zoom:11.5,orbitYaw:0,orbitPitch:-.1,camFollow:0,helpVisible:!0,freezeCam:!1},Wn=new Set,Xs={left:!1,right:!1};window.addEventListener("keydown",r=>{const t=r.code;if(Wn.add(t),t==="Space"&&r.preventDefault(),t==="KeyO"){r.preventDefault(),be.file?.click();return}if(t==="KeyM"){r.preventDefault(),be.root?.classList.toggle("hidden");return}J.started&&(t==="KeyV"&&(J.stabilizer=!J.stabilizer,document.querySelector("#stabilizer").classList.toggle("off",!J.stabilizer),document.querySelector("#stabilizer").textContent=J.stabilizer?"СТАБИЛИЗАТОР ВКЛ":"СТАБИЛИЗАТОР ВЫКЛ",an.clank()),t==="Digit1"&&Pr(0),t==="Digit2"&&Pr(1),t==="Digit3"&&Pr(2),t==="KeyT"&&(J.aimMode=J.aimMode==="cursor"?"mouse":"cursor",J.aimMode==="mouse"?$r.requestPointerLock?.():document.exitPointerLock?.(),J.keyAimT=0,uh(),aimSync(),an.clank()),t==="KeyG"&&(showAimDot=!showAimDot,aimSync(),an.clank()),t==="KeyC"&&(Pr((J.cameraMode+1)%3),an.clank()),t==="KeyH"&&(J.helpVisible=!J.helpVisible,document.querySelector("#help").style.opacity=J.helpVisible?"1":"0"),t==="KeyR"&&VCH_FADE.to(()=>location.reload(),320))});window.addEventListener("keyup",r=>Wn.delete(r.code));let tp=!1;document.addEventListener("pointerlockchange",()=>{tp=document.pointerLockElement===$r});$r.addEventListener("contextmenu",r=>r.preventDefault());/* чувствительность мыши — общий множитель для обзора и наведения */
 let VCH_SENS=1;
-document.addEventListener("mousemove",r=>{if(J.started){if(Xs.right){J.orbitYaw-=r.movementX*.0045*VCH_SENS,J.orbitPitch=Te.clamp(J.orbitPitch-r.movementY*.0035*VCH_SENS,-.9,.75);return}if(J.aimMode==="cursor"&&tp&&document.exitPointerLock?.(),J.aimMode==="mouse"){J.aimAzWorld+=r.movementX*.0022*VCH_SENS,J.aimEl=Te.clamp(J.aimEl-r.movementY*.0022*.62*VCH_SENS,Rl,Cl);return}J.cursor.x=r.clientX/window.innerWidth,J.cursor.y=r.clientY/window.innerHeight,hh(),aimSync()}});$r.addEventListener("mousedown",r=>{if(J.started){if(r.button===2){Xs.right=!0;return}r.button===0&&(Xs.left=!0,lh())}});window.addEventListener("mouseup",r=>{r.button===2&&(Xs.right=!1),r.button===0&&(Xs.left=!1)});window.addEventListener("wheel",r=>{J.started&&(J.cameraMode===2?(J.sightFov=Te.clamp((J.sightFov??15)+Math.sign(r.deltaY)*1.6,5,32),J.fovTarget=J.sightFov):J.zoom=Te.clamp(J.zoom+Math.sign(r.deltaY)*1.4,7,42))},{passive:!0});function Pr(r){
+/* ==========================================================================
+   7.1 · Привод башни: настройки наведения мышью
+
+   sensX / sensY — чувствительность по осям (множитель к VCH_SENS);
+   expo         — насколько ускоряется наведение при быстром движении мыши
+                  (0 — линейно, 0.6 — на 60% быстрее на рывке);
+   rateY/rateX  — максимальная скорость поворота башни и подъёма ствола, рад/с;
+   accY / accX  — ускорение привода, рад/с² (разгон и торможение);
+   kP           — с какой ошибки начинается торможение: при расхождении
+                  меньше rateY/kP привод снижает скорость и подходит мягко;
+   maxLag       — на сколько прицел может оторваться от ствола, рад.
+                  Без этого мышь уводит цель на десятки градусов вперёд, а
+                  башня секунды догоняет — управление кажется ватным.
+   Значения лежат в localStorage["vch.aim.v1"], правятся ползунками во
+   вкладке «УПРАВЛЕНИЕ» (F) и из консоли: __vchAim({rateY:1.2}).
+   ========================================================================== */
+const VCH_AIM={sensX:1,sensY:1,expo:.6,rateY:.95,rateX:.50,accY:6,accX:3.5,kP:7,maxLag:.18,
+               pullTau:.8,       /* за сколько секунд «лишний» отрыв прицела стекает */
+               maxBacklog:.7,    /* предел «долга»: дальше ввод всё-таки отбрасывается */
+               cursorTau:.07};   /* сглаживание точки прицеливания в режиме курсора, с */
+{ try{ const raw=localStorage.getItem("vch.aim.v1");
+       if(raw){ const o=JSON.parse(raw);
+         for(const k of Object.keys(VCH_AIM)) if(typeof o[k]==="number"&&isFinite(o[k])) VCH_AIM[k]=o[k] }
+  }catch(e){}
+  const save=()=>{ try{ localStorage.setItem("vch.aim.v1",JSON.stringify(VCH_AIM)) }catch(e){} };
+  VCH_AIM.gain=m=>1+VCH_AIM.expo*Math.min(1,Math.abs(m)/40);   /* нелинейность */
+  VCH_AIM.set=o=>{ for(const k of Object.keys(VCH_AIM))
+                     if(typeof o[k]==="number"&&isFinite(o[k])) VCH_AIM[k]=o[k];
+                   save(); return VCH_AIM };
+  VCH_AIM.save=save;
+  window.__vchAim=o=>o?VCH_AIM.set(o):VCH_AIM;
+}
+document.addEventListener("mousemove",r=>{if(J.started){if(Xs.right){J.orbitYaw-=r.movementX*.0045*VCH_SENS,J.orbitPitch=Te.clamp(J.orbitPitch-r.movementY*.0035*VCH_SENS,-.9,.75);return}if(J.aimMode==="cursor"&&tp&&document.exitPointerLock?.(),J.aimMode==="mouse"){
+    /* оси раздельно и мягкая «экспонента»: мелкие поправки остаются
+       точными, длинный рывок поворачивает быстрее */
+    J.aimAzWorld+=r.movementX*.0011*VCH_SENS*VCH_AIM.sensX*VCH_AIM.gain(r.movementX),
+    J.aimEl=Te.clamp(J.aimEl-r.movementY*.0011*.62*VCH_SENS*VCH_AIM.sensY*VCH_AIM.gain(r.movementY),Rl,Cl);
+    return}J.cursor.x=r.clientX/window.innerWidth,J.cursor.y=r.clientY/window.innerHeight,hh(),aimSync()}});$r.addEventListener("mousedown",r=>{if(J.started){if(r.button===2){Xs.right=!0;return}r.button===0&&(Xs.left=!0,lh())}});window.addEventListener("mouseup",r=>{r.button===2&&(Xs.right=!1),r.button===0&&(Xs.left=!1)});window.addEventListener("wheel",r=>{J.started&&(J.cameraMode===2?(J.sightFov=Te.clamp((J.sightFov??15)+Math.sign(r.deltaY)*1.6,5,32),J.fovTarget=J.sightFov):J.zoom=Te.clamp(J.zoom+Math.sign(r.deltaY)*1.4,7,42))},{passive:!0});function Pr(r){
  /* 6.4: запоминаем вид между запусками */
  try{localStorage.setItem("vch36.cam",String(r))}catch(e){}
  J.cameraMode=r;const t=document.querySelector("#camlabel");t.textContent=["ВИД: КОМАНДИРСКИЙ","ВИД: ВНЕШНИЙ","ВИД: ПРИЦЕЛ НАВОДЧИКА"][r],document.querySelector("#scope").classList.toggle("off",r!==2),document.querySelector("#hud").classList.toggle("scoped",r===2),J.camSwitch=1,
@@ -426,7 +463,42 @@ function Q1(r){
  Math.hypot(n-o.x,sz-o.z)<9&&(e=Math.max(e,26),n=r.x+t.x*e,i=r.y+t.y*e,sz=r.z+t.z*e),
  J.aimPoint=J.aimPoint||new P,J.aimPoint.set(n,i,sz);
 }
-function uh(){const r=document.querySelector("#aimmode");r&&(r.textContent=J.aimMode==="cursor"?"НАВЕДЕНИЕ: КУРСОР":"НАВЕДЕНИЕ: МЫШЬ (ЗАХВАТ)")}function eb(r){const t=new P(0,0,1).applyQuaternion(qt.group.quaternion),e=Math.atan2(t.x,t.z);if(J.aimMode==="cursor"&&(J.cameraMode!==2&&(J.aimFrames++,J.aimFrames%3===0&&!(J.keyAimT>0)&&hh()),J.aimPoint)){qt.turret.getWorldPosition(yr),yr.y+=.42;const c=J.aimPoint.x-yr.x,l=J.aimPoint.y-yr.y,h=J.aimPoint.z-yr.z,d=Math.hypot(c,h);d>1.2&&(J.aimAzWorld=Math.atan2(c,h),J.aimEl=Te.clamp(Math.atan2(l,d),Rl,Cl))}let n,o;
+function uh(){const r=document.querySelector("#aimmode");r&&(r.textContent=J.aimMode==="cursor"?"НАВЕДЕНИЕ: КУРСОР":"НАВЕДЕНИЕ: МЫШЬ (ЗАХВАТ)")}
+/* Переключатель режима наведения: «курсор» (прицел — точка на местности) и
+   «мышь» (прямой привод башни, захват указателя). Захват включается только по
+   жесту пользователя — браузер иначе не даст pointer lock, поэтому он
+   запрашивается и здесь, и по клику по канвасу. */
+function vchAimModeSet(m){
+  J.aimMode=(m==="mouse")?"mouse":"cursor";
+  try{ if(J.aimMode==="mouse"){ ($r.requestPointerLock&&document.pointerLockElement!==$r)&&$r.requestPointerLock() }
+       else document.exitPointerLock&&document.exitPointerLock() }catch(e){}
+  try{ localStorage.setItem("vch.aimMode",J.aimMode) }catch(e){}
+  J.aimSmoothInited=0,uh();
+  return J.aimMode;
+}
+window.__vchAimMode=m=>m?vchAimModeSet(m):J.aimMode;
+{ try{ const sv=localStorage.getItem("vch.aimMode");
+       if(sv==="mouse"||sv==="cursor")J.aimMode=sv }catch(e){}
+  document.addEventListener("click",e=>{
+    if(J.aimMode==="mouse"&&J.started&&!document.pointerLockElement&&$r){
+      try{ if(e.target===$r||($r.contains&&$r.contains(e.target))) $r.requestPointerLock() }catch(_){}
+    }});
+}function eb(r){const t=new P(0,0,1).applyQuaternion(qt.group.quaternion),e=Math.atan2(t.x,t.z);if(J.aimMode==="cursor"){
+   /* Цель раньше пересчитывалась каждый третий кадр (20 Гц на 60 fps) — башня
+      шла ступеньками. Считаем каждый кадр: hh() это луч по рельефу, он дешёвый. */
+   if(J.cameraMode!==2&&!(J.keyAimT>0)){J.aimFrames++;hh()}
+   /* Точка прицеливания сглаживается: у горизонта луч по рельефу прыгает на
+      сотни метров от малейшего движения курсора, и без сглаживания башня
+      дёргается. Держим и сырую точку (прицел/дальномер), и сглаженную. */
+   if(J.aimPoint){
+     J.aimSmooth=J.aimSmooth||new P;
+     if(!J.aimSmoothInited){J.aimSmooth.copy(J.aimPoint);J.aimSmoothInited=1}
+     else{const k=1-Math.exp(-r/VCH_AIM.cursorTau);
+          J.aimSmooth.lerp(J.aimPoint,Math.min(1,k))}
+   }
+   const AP=J.aimSmooth||J.aimPoint;
+   if(AP){qt.turret.getWorldPosition(yr),yr.y+=.42;const c=AP.x-yr.x,l=AP.y-yr.y,h=AP.z-yr.z,d=Math.hypot(c,h);d>1.2&&(J.aimAzWorld=Math.atan2(c,h),J.aimEl=Te.clamp(Math.atan2(l,d),Rl,Cl))}
+ }let n,o;
  if(J.stabilizer){
   /*
   Качку отката компенсирует узел стабилизатора под башней, поэтому система башни
@@ -437,7 +509,41 @@ function uh(){const r=document.querySelector("#aimmode");r&&(r.textContent=J.aim
   qHull.copy(qt.group.quaternion);
   const L=D.applyQuaternion(qHull.invert());
   n=Math.atan2(L.x,L.z),o=Math.asin(Te.clamp(L.y,-1,1));
- }else{J.aimAzWorld=J.turretYaw+e,n=J.turretYaw,o=J.aimEl}let i=n-J.turretYaw;i=Math.atan2(Math.sin(i),Math.cos(i));const s=(J.aimMode==="cursor"?.85:.62)*r;J.turretYaw+=Te.clamp(i,-s,s),J.turretYaw=Math.atan2(Math.sin(J.turretYaw),Math.cos(J.turretYaw));const a=(J.aimMode==="cursor"?.34:.26)*r;J.elevation+=Te.clamp(o-J.elevation,-a,a);
+ }else{J.aimAzWorld=J.turretYaw+e,n=J.turretYaw,o=J.aimEl}let i=n-J.turretYaw;i=Math.atan2(Math.sin(i),Math.cos(i));
+ /*
+  Прицел не должен уезжать от ствола: иначе цель накапливается десятками градусов
+  и башня едет за ней секунды. Отрыв свыше maxLag стравливается с постоянной
+  времени pullTau — не мгновенной отсечкой, а плавно: при мгновенной отсечке ввод
+  просто выбрасывался (рывок мыши на 50° поворачивал башню всё равно на 10°).
+ */
+ if(J.aimMode!=="cursor"){
+   const lm=VCH_AIM.maxLag,ex=Math.abs(i)-lm;
+   if(ex>0){
+     const sg=i<0?-1:1,over=Math.max(0,ex-VCH_AIM.maxBacklog);
+     over>0&&(J.aimAzWorld-=sg*over,i-=sg*over);
+     const ex2=Math.abs(i)-lm;
+     if(ex2>0){ const pull=Math.min(ex2,ex2/VCH_AIM.pullTau*r);
+                J.aimAzWorld-=sg*pull,i-=sg*pull }
+   }
+ }
+ /* привод: желаемая скорость пропорциональна расхождению, но не быстрее
+    rateY; сама скорость доводится с ограничением ускорения — башня
+    разгоняется и тормозит, а не идёт «в упор» и не встаёт рывком */
+ { const k=(J.aimMode==="cursor"?.95:1),      /* курсор: как было 0.85 рад/с */
+         rY=VCH_AIM.rateY*k,rX=VCH_AIM.rateX*k;
+   J.turretRate=J.turretRate||0;J.elevRate=J.elevRate||0;
+   const wY=Te.clamp(i*VCH_AIM.kP,-rY,rY),
+         wX=Te.clamp((o-J.elevation)*VCH_AIM.kP,-rX,rX);
+   J.turretRate+=Te.clamp(wY-J.turretRate,-VCH_AIM.accY*r,VCH_AIM.accY*r);
+   J.elevRate  +=Te.clamp(wX-J.elevRate,  -VCH_AIM.accX*r,VCH_AIM.accX*r);
+   /* шаг не может перескочить цель: на низком FPS башня иначе проскакивает */
+   let dY=J.turretRate*r,dX=J.elevRate*r,ge=o-J.elevation;
+   dY=i>=0?Math.min(dY,i):Math.max(dY,i);
+   dX=ge>=0?Math.min(dX,ge):Math.max(dX,ge);
+   J.turretYaw+=dY;
+   J.elevation+=dX;
+ }
+ J.turretYaw=Math.atan2(Math.sin(J.turretYaw),Math.cos(J.turretYaw));
  const slack=Math.min(1.0,Math.abs(Ce.pitch||0)+Math.abs(Ce.roll||0)+.1);
  J.elevation=Te.clamp(J.elevation,Rl-.03-slack,Cl+.03+slack),qt.turret.rotation.y=J.turretYaw,qt.gunPivot.rotation.x=-J.elevation}const qHull=new gn;
 /*

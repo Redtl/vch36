@@ -815,6 +815,7 @@ window.__vchNight = {
   mkPage(LIT, false);
   /* ---- вкладка 3: посадка ленты Скорпиона на ведущем колесе ---- */
   mkTab("СКОРПИОН");
+  mkTab("УПРАВЛЕНИЕ");
   const scPage = document.createElement("div");
   scPage.style.display = "none";
   scPage.innerHTML = '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin-bottom:9px">'
@@ -895,6 +896,83 @@ window.__vchNight = {
   bvRow.appendChild(bvInp);
   scPage.appendChild(bvRow);
   box.appendChild(scPage); pages.push(scPage);
+
+  /* ---- вкладка 4: привод башни (наведение мышью) ------------------------ */
+  const ctlPage = document.createElement("div");
+  ctlPage.style.display = "none";
+  ctlPage.innerHTML = '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin-bottom:9px">'
+    + 'привод башни Скорпиона. Скорость — максимальная, плавность — как быстро '
+    + 'привод набирает и сбрасывает её, отрыв — на сколько прицел может '
+    + 'уехать от ствола: дальше этого угла «лишний» ввод плавно стравливается, '
+    + 'чтобы башня не тащилась за прицелом секунды. Режим переключается '
+    + 'клавишей T.</div>';
+  const CTL = [
+    {k:"sensX",  t:"Чувств. горизонт.", min:.3, max:2.5, step:.05, fmt:v=>v.toFixed(2)},
+    {k:"sensY",  t:"Чувств. вертикаль", min:.3, max:2.5, step:.05, fmt:v=>v.toFixed(2)},
+    {k:"rateY",  t:"Скорость башни,°/с", min:.3, max:2.2, step:.05, fmt:v=>(v*57.3).toFixed(0)},
+    {k:"rateX",  t:"Скорость ствола,°/с", min:.15,max:1.2, step:.05, fmt:v=>(v*57.3).toFixed(0)},
+    {k:"accY",   t:"Плавность",         min:1,   max:16,  step:.5,  fmt:v=>v.toFixed(1)},
+    {k:"maxLag", t:"Отрыв прицела,°",   min:0,   max:.6,  step:.02, fmt:v=>(v*57.3).toFixed(0)}
+  ];
+  const ctlRefs=[];
+  for(const c of CTL){
+    const row=document.createElement("div");
+    row.style.cssText="margin-bottom:7px";
+    row.innerHTML='<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
+      +'letter-spacing:.08em;margin-bottom:3px"><span>'+c.t+'</span><span style="color:#ffc75a"></span></div>';
+    const inp=document.createElement("input");
+    inp.type="range"; inp.min=c.min; inp.max=c.max; inp.step=c.step;
+    inp.style.cssText="width:100%;margin:0;accent-color:#ff8a22;cursor:pointer";
+    inp.value=(typeof VCH_AIM!=="undefined"&&VCH_AIM[c.k]!=null)?VCH_AIM[c.k]:c.min;
+    row.querySelector("span:last-child").textContent=c.fmt(+inp.value);
+    inp.addEventListener("input",()=>{
+      const v=parseFloat(inp.value);
+      if(typeof VCH_AIM!=="undefined"){ VCH_AIM[c.k]=v; VCH_AIM.save&&VCH_AIM.save() }
+      if(c.k==="accY"&&typeof VCH_AIM!=="undefined") VCH_AIM.accX=Math.max(1,v*.58);
+      row.querySelector("span:last-child").textContent=c.fmt(v);
+    });
+    row.appendChild(inp); ctlPage.appendChild(row);
+    ctlRefs.push({c,row,inp});
+  }
+  /* переключатель режима наведения (клавиша T) */
+  const amRow=document.createElement("div");
+  amRow.style.cssText="margin:9px 0 7px";
+  amRow.innerHTML='<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
+    +'letter-spacing:.08em;margin-bottom:4px"><span>РЕЖИМ НАВЕДЕНИЯ</span></div>';
+  const amBtn=document.createElement("button");
+  amBtn.type="button";
+  amBtn.style.cssText="width:100%;cursor:pointer;background:#1a1f23;color:#cfd6db;border:1px solid #333c43;"
+    +"padding:6px 4px;font-size:10px;letter-spacing:.12em;font-family:inherit";
+  const amLabel=()=>{
+    const m=(typeof J!=="undefined")?J.aimMode:"cursor";
+    amBtn.textContent=m==="cursor"?"КУРСОР → МЫШЬ (ЗАХВАТ)":"МЫШЬ (ЗАХВАТ) → КУРСОР";
+  };
+  amLabel();
+  amBtn.addEventListener("click",()=>{
+    if(typeof vchAimModeSet==="function"){
+      vchAimModeSet((typeof J!=="undefined"&&J.aimMode==="cursor")?"mouse":"cursor");
+      amLabel();
+    }
+  });
+  amRow.appendChild(amBtn); ctlPage.appendChild(amRow);
+  /* возврат привода к заводским значениям */
+  const rsRow=document.createElement("div");
+  rsRow.style.cssText="margin:4px 0 2px";
+  const rsBtn=document.createElement("button");
+  rsBtn.type="button";
+  rsBtn.textContent="СБРОС ПРИВОДА";
+  rsBtn.style.cssText="width:100%;cursor:pointer;background:#1a1f23;color:#cfd6db;border:1px solid #333c43;"
+    +"padding:6px 4px;font-size:10px;letter-spacing:.12em;font-family:inherit";
+  rsBtn.addEventListener("click",()=>{
+    const D={sensX:1,sensY:1,expo:.6,rateY:.95,rateX:.50,accY:6,accX:3.5,kP:7,maxLag:.18,pullTau:.8,cursorTau:.07};
+    if(typeof VCH_AIM==="undefined")return;
+    for(const k in D)VCH_AIM[k]=D[k];
+    VCH_AIM.save&&VCH_AIM.save();
+    for(const r of ctlRefs){ r.inp.value=VCH_AIM[r.c.k];
+      r.row.querySelector("span:last-child").textContent=r.c.fmt(VCH_AIM[r.c.k]) }
+  });
+  rsRow.appendChild(rsBtn); ctlPage.appendChild(rsRow);
+  box.appendChild(ctlPage); pages.push(ctlPage);
 
   function sync(){
     for(const r of rows){
