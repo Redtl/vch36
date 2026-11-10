@@ -464,6 +464,10 @@ function mountScorpion(src){
       g.attributes.uv.needsUpdate=!0;
     });
   }
+  /* Обход граней правим до материалов и до пересчёта нормалей: и bevel, и
+     сглаживание катков считают нормаль грани по порядку вершин, поэтому
+     вывернутые треугольники должны быть вывернуты обратно заранее. */
+  scWindPass();
   /* ===== Материалы — ТЕ ЖЕ, что у ОБТ-36 ==================================
      У ОБТ набор M собирается в Nw(): paint/paintLight/paintDark/sleeve/
      paintWorn/wheelHub получают карту surfMaps() (периодический FBM: затёртая
@@ -754,6 +758,53 @@ function mountScorpion(src){
     });
     return {smoothDeg:C.smoothDeg,meshes};
   }
+  function scWindPass(){
+    const a=scFixWinding(modelRoot),b=scFixWinding(group);
+    return a.flipped+b.flipped;
+  }
+  /* ===== Вывернутые грани ==================================================
+     В модели часть треугольников завёрнута не той стороной: порядок вершин
+     даёт нормаль грани против вершинной нормали (в корме это воздухозаборник
+     охлаждения — 15.9% граней, Side_Armor_04 — 11.6%, всего 18 мешей).
+     Такая грань либо пропадает при отсечении задних поверхностей, либо ловит
+     свет изнанкой — отсюда провалы и «плохой шейдинг» на корме.
+     Лечим по вершинным нормалям: они в модели верные, поэтому у грани, у
+     которой обход с ними спорит, меняем местами два индекса. Позиции, UV и
+     нормали не трогаются — меняется только порядок обхода.              */
+  function scFixWinding(root){
+    const seen=new Set();let meshes=0,flipped=0;
+    root.traverse(o=>{
+      if(!o.isMesh||o.isInstancedMesh||!o.geometry)return;
+      const g=o.geometry;
+      if(!g.index||!g.attributes.position||!g.attributes.normal)return;
+      const id=g.uuid;if(seen.has(id))return;seen.add(id);
+      const ix=g.index,a=ix.array,p=g.attributes.position,n=g.attributes.normal,
+            tri=Math.floor(ix.count/3);
+      let f=0;
+      for(let t=0;t<tri;t++){
+        const i0=3*t,i1=i0+1,i2=i0+2,A=a[i0],B=a[i1],C=a[i2];
+        const ux=p.getX(B)-p.getX(A),uy=p.getY(B)-p.getY(A),uz=p.getZ(B)-p.getZ(A),
+              vx=p.getX(C)-p.getX(A),vy=p.getY(C)-p.getY(A),vz=p.getZ(C)-p.getZ(A);
+        const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,
+              L=Math.hypot(nx,ny,nz);
+        if(L<1e-10)continue;                        /* вырожденная — не тронута */
+        const mx=n.getX(A)+n.getX(B)+n.getX(C),
+              my=n.getY(A)+n.getY(B)+n.getY(C),
+              mz=n.getZ(A)+n.getZ(B)+n.getZ(C),
+              ML=Math.hypot(mx,my,mz);
+        if(ML<1e-9)continue;
+        /* Порог мягкий (-0.05): на тонких рёбрах решёток вершинные нормали
+           почти перпендикулярны грани, и при строгом пороге такие грани
+           остались бы вывернутыми. Переворот идемпотентен — после него
+           скалярное произведение положительное и грань больше не трогается. */
+        if((nx*mx+ny*my+nz*mz)/(L*ML) < -0.05){      /* обход спорит с нормалью */
+          const tmp=a[i1];a[i1]=a[i2];a[i2]=tmp;f++
+        }
+      }
+      if(f){ix.needsUpdate=!0;meshes++;flipped+=f}
+    });
+    return {meshes,flipped};
+  }
   /* ===== Bevel: скругление рёбер по всей модели ==========================
      Фаску по-настоящему (вставкой граней) на импортированной GLB в рантайме
      не сделать: пришлось бы перестраивать индексы 139 узлов и ломать UV.
@@ -872,6 +923,21 @@ function mountScorpion(src){
   try{const sv=localStorage.getItem("vch.scSmooth");if(sv!=null&&isFinite(+sv))C.smoothDeg=Te.clamp(+sv,0,179)}catch(e){}
   try{const sv=localStorage.getItem("vch.scBevel");if(sv!=null&&isFinite(+sv))C.bevelDeg=Te.clamp(+sv,0,150)}catch(e){}
   scGearSeat(C.gearSeat);
+  /* Часть узлов (решётки, навесное оборудование) добавляется в модель уже
+     после монтирования — при монтировании их в дереве ещё нет (75 и 130 мешей
+     против 182 в собранной машине). Поэтому вывернутые грани ловим несколькими
+     проходами с нарастающим интервалом: проход, нашедший хоть одну грань,
+     пересчитывает нормали заново, иначе bevel считал бы нормали граней по
+     старому, вывернутому обходу. */
+  scWindPass();
+  { const steps=[80,300,900,2200,4500];let i=0;
+    const tick=()=>{
+      const fx=scWindPass();
+      if(fx&&C.bevelDeg>0)scApplyBevel(C.bevelDeg);   /* нормали считаются по обходу */
+      if(i<steps.length)setTimeout(tick,steps[i++]);
+    };
+    setTimeout(tick,steps[i++]);
+  }
   scApplyBevel(C.bevelDeg);          /* после посадки: колеса уже обработаны */
 
   (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat,smooth:scApplySmooth,bevel:scApplyBevel});
@@ -1063,6 +1129,12 @@ function mountScorpion(src){
      тем мягче рёбра (150 — почти полное сглаживание). Хранится в
      localStorage["vch.scBevel"]. */
   window.__vchScBevel=d=>scApplyBevel(d);
+  /* Повторно выправить обход граней (на случай, если модель пересобрана):
+     __vchScWind() -> {meshes, flipped}. */
+  window.__vchScWind=()=>{const f=scWindPass();
+    if(f&&C.bevelDeg>0)scApplyBevel(C.bevelDeg);
+    if(f&&C.smoothDeg>0)scApplySmooth(C.smoothDeg);
+    return {flipped:f};};
   window.__vchScSeat=v=>({seat:scGearSeat(v),
     gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
       tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});
