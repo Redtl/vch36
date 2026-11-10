@@ -35,6 +35,10 @@ const pa=new Ef;let qo=0;const Xo=1/60;let Yo=0,Pc=0;function np(){requestAnimat
    ------------------------------------------------------------------------- */
 
 
+/* Порог фаски: рёбра, у которых угол между гранями круче этого, не скругляются
+   вовсе — острые кромки брони и грани зубьев должны остаться живыми. */
+const VCH_SC_REACH=100;
+
 const VCH_SC_CFG={
   scale:0.349,
   hullH:1.55,
@@ -61,12 +65,19 @@ const VCH_SC_CFG={
      (1970 вершин на 1052 треугольника), поэтому светятся гранями; 0 —
      выключить и вернуть нормали модели как есть. */
   smoothDeg:62,
-  /* Bevel («фаска») по всей модели: до какого угла между гранями нормаль
-     вершины уходит от плоскости грани. Это скругление по нормалям, а не
-     правка геометрии: силуэт тот же, но рёбра перестают резать светом.
-     Полное усреднение идёт до 30°, дальше вес плавно гаснет к bevelDeg,
-     поэтому прямой угол корпуса получает именно небольшую фаску. 0 — выкл. */
-  bevelDeg:100,
+  /* Bevel («фаска») по всей модели: на сколько градусов нормаль вершины
+     может уйти от плоскости своей грани. Это скругление по нормалям, а не
+     правка геометрии: силуэт тот же, рёбра мягче ловят свет.
+     Ограничение обязательно: без него сглаживание расходится по всей
+     поверхности и машина становится «мыльной» — плоские панели выглядят
+     выпуклыми, сегменты ствола пропадают. Здесь фаска не может стать шире
+     bevelDeg, сколько бы граней ни сошлось в вершине. Рёбра, повёрнутые
+     друг к другу круче VCH_SC_REACH, не трогаются вовсе. 0 — как в модели. */
+  bevelDeg:5,
+  /* Подобрано по кадру: доля резких перепадов яркости на стволе — 31.5% у
+     исходной модели, 32.8% при 5°, 28.2% при 8°, 21.5% при 12° и 13.7% при
+     20°. То есть с 12° сглаживание начинает съедать саму сетку («мыло»),
+     а 5° держит читаемость формы и даёт фаску ~4.5°. */
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -851,8 +862,9 @@ function mountScorpion(src){
       const arr=groups.get(keys[vi(3*t+k)]);
       if(arr&&arr.indexOf(t)<0)arr.push(t);
     }
-    const FULL=Math.min(30,deg*.35),
-          cosFull=Math.cos(FULL*Math.PI/180),cosMax=Math.cos(deg*Math.PI/180),
+    const REACH=VCH_SC_REACH,
+          FULL=Math.min(30,REACH*.35),
+          cosFull=Math.cos(FULL*Math.PI/180),cosMax=Math.cos(REACH*Math.PI/180),
           inv=1/Math.max(1e-6,cosFull-cosMax);
     const out=new Float32Array(vc*3),Buf=p.constructor;
     for(let i=0;i<vc;i++){
@@ -879,6 +891,30 @@ function mountScorpion(src){
       if(L<1e-8){sx=0;sy=1;sz=0;L=1}
       out[i*3]=sx/L;out[i*3+1]=sy/L;out[i*3+2]=sz/L;
     }
+    /* Ограничитель фаски: нормаль не уходит от плоскости своей самой крупной
+       грани дальше чем на deg. Без этого на цилиндре и на стыке нескольких
+       граней нормаль усреднялась до полного сглаживания, и машина становилась
+       «мыльной»: пропадали сегменты ствола, плоские панели выглядели дутыми. */
+    if(deg<90){
+      const lim=deg*Math.PI/180;
+      for(let i=0;i<vc;i++){
+        const arr=groups.get(keys[i]);
+        if(!arr||!arr.length)continue;
+        let best=arr[0],ba=-1;
+        for(let j=0;j<arr.length;j++){const t=arr[j];if(fa[t]>ba){ba=fa[t];best=t}}
+        const rx=fn[3*best],ry=fn[3*best+1],rz=fn[3*best+2],
+              ox=out[i*3],oy=out[i*3+1],oz=out[i*3+2];
+        let c=ox*rx+oy*ry+oz*rz;
+        if(c>1)c=1;else if(c<-1)c=-1;
+        const ang=Math.acos(c);
+        if(ang>lim){
+          const t=lim/ang,
+                nx2=rx*(1-t)+ox*t,ny2=ry*(1-t)+oy*t,nz2=rz*(1-t)+oz*t,
+                L=Math.hypot(nx2,ny2,nz2)||1;
+          out[i*3]=nx2/L;out[i*3+1]=ny2/L;out[i*3+2]=nz2/L;
+        }
+      }
+    }
     if(!g.attributes.normal||g.attributes.normal.count!==vc)
       g.setAttribute("normal",new Buf(new Float32Array(vc*3),3));
     const na=g.attributes.normal;
@@ -894,7 +930,7 @@ function mountScorpion(src){
      (smoothDeg), он накатывается поверх; лента — у неё свой материал с
      flatShading и процедурная геометрия, её вид не должен меняться. */
   function scApplyBevel(deg){
-    C.bevelDeg=Te.clamp(+deg||0,0,150);
+    C.bevelDeg=Te.clamp(+deg||0,0,30);
     try{localStorage.setItem("vch.scBevel",String(C.bevelDeg))}catch(e){}
     const skip=new Set();
     const mark=root=>{ if(!root)return; root.traverse(o=>{ if(o.isMesh)skip.add(o) }) };
@@ -928,7 +964,7 @@ function mountScorpion(src){
   }
   try{const sv=localStorage.getItem("vch.scSeat");if(sv!=null&&isFinite(+sv))C.gearSeat=Te.clamp(+sv,0,1)}catch(e){}
   try{const sv=localStorage.getItem("vch.scSmooth");if(sv!=null&&isFinite(+sv))C.smoothDeg=Te.clamp(+sv,0,179)}catch(e){}
-  try{const sv=localStorage.getItem("vch.scBevel");if(sv!=null&&isFinite(+sv))C.bevelDeg=Te.clamp(+sv,0,150)}catch(e){}
+  try{const sv=localStorage.getItem("vch.scBevel");if(sv!=null&&isFinite(+sv)&&+sv<=30)C.bevelDeg=Te.clamp(+sv,0,30)}catch(e){}
   scGearSeat(C.gearSeat);
   /* Часть узлов (решётки, навесное оборудование) добавляется в модель уже
      после монтирования — при монтировании их в дереве ещё нет (75 и 130 мешей

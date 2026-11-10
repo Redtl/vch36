@@ -872,16 +872,17 @@ window.__vchNight = {
     + 'фаска по всей модели Скорпиона (кроме катков — у них своё '
     + 'сглаживание):<br>'
     + '<b style="color:#cfd6dc">0</b> — рёбра модели как есть, '
-    + '<b style="color:#cfd6dc">60…120</b> — мягче. Считается по нормалям, '
-    + 'силуэт не меняется.</div>');
+    + '<b style="color:#cfd6dc">5</b> — рабочая фаска, '
+    + '<b style="color:#cfd6dc">10+</b> — сглаживание съедает сетку («мыло»). '
+    + 'Считается по нормалям, силуэт не меняется.</div>');
   const bvRow = document.createElement("div");
   bvRow.style.cssText = "margin-bottom:7px";
   bvRow.innerHTML = '<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
     + 'letter-spacing:.08em;margin-bottom:3px"><span>ФАСКА,°</span><span style="color:#ffc75a"></span></div>';
   const bvInp = document.createElement("input");
-  bvInp.type = "range"; bvInp.min = 0; bvInp.max = 150; bvInp.step = 5;
+  bvInp.type = "range"; bvInp.min = 0; bvInp.max = 30; bvInp.step = 1;
   bvInp.style.cssText = "width:100%;margin:0;accent-color:#ff8a22;cursor:pointer";
-  let bvVal = 100;
+  let bvVal = 5;
   try{ const sv = localStorage.getItem("vch.scBevel");
        if(sv != null && isFinite(+sv)) bvVal = +sv }catch(e){}
   bvInp.value = bvVal;
