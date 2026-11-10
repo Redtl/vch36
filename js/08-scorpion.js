@@ -56,6 +56,11 @@ const VCH_SC_CFG={
   /* Кронштейны катков (Gear_Low*) едут вместе с катками. Выключить — каток
      снова поедет внутри неподвижного кронштейна. */
   armMove:!0,
+  /* «Шейд смуз» катков: до какого угла (градусы) между соседними гранями
+     нормали усредняются. Диски приходят из GLB с разнесёнными вершинами
+     (1970 вершин на 1052 треугольника), поэтому светятся гранями; 0 —
+     выключить и вернуть нормали модели как есть. */
+  smoothDeg:62,
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -651,6 +656,98 @@ function mountScorpion(src){
       ch.geometry.computeBoundingBox();ch.geometry.computeBoundingSphere();
     });
   }
+  /* ===== Шейд смуз: сглаженные нормали колёс ==============================
+     Диски катков приходят из GLB с разнесёнными вершинами (1970 вершин на
+     1052 треугольника): у каждой грани свои три вершины, поэтому каток
+     светится гранями, даже хотя NORMAL в модели загружен — средний угол
+     между соседними гранями 33.6° (у катка ОБТ-36, собранного из lathe,
+     — 10.9°). Здесь вершины с одинаковой позицией находят друг друга и
+     получают усреднённую нормаль, но только от граней, повёрнутых к этой
+     не круче smoothDeg: фаски по кругу диска перестают читаться как
+     многоугольник, а кромки обода и грани зубьев остаются живыми.
+     Исходный NORMAL сохраняется — при smoothDeg=0 всё возвращается.       */
+  function scSmoothGeom(ch,maxDeg){
+    const g=ch.geometry;
+    if(!g||!g.attributes||!g.attributes.position)return 0;
+    if(!(maxDeg>0)){                            /* выключено — вернуть как было */
+      const n0=ch.userData.__vchNor0;
+      if(n0){const B=n0.constructor;
+        g.setAttribute("normal",new B(n0.array.slice(0),n0.itemSize,n0.normalized));
+        g.attributes.normal.needsUpdate=!0;return 1}
+      return 0;
+    }
+    const p=g.attributes.position;
+    if(!p||p.isInterleavedBufferAttribute)return 0;
+    /* Считаем прямо по индексированной геометрии: разворот в toNonIndexed
+       подменял бы буфер position, а на нём держится кэш __vchOrig у
+       shrinkRadial (сжатие зубьев) — посадка ленты перестала бы
+       откатываться. Здесь не трогается ни position, ни индекс. */
+    const idx=g.index,vc=p.count,tri=idx?Math.floor(idx.count/3):Math.floor(vc/3);
+    if(tri<4)return 0;
+    if(!ch.userData.__vchNor0&&g.attributes.normal)ch.userData.__vchNor0=g.attributes.normal.clone();
+    const vi=t=>idx?idx.getX(t):t;               /* номер вершины угла t */
+    const cosMin=Math.cos(Math.min(179,Math.max(1,maxDeg))*Math.PI/180),
+          fn=new Float32Array(tri*3);
+    for(let t=0;t<tri;t++){
+      const a=vi(3*t),b=vi(3*t+1),c=vi(3*t+2),
+            ax=p.getX(a),ay=p.getY(a),az=p.getZ(a),
+            ux=p.getX(b)-ax,uy=p.getY(b)-ay,uz=p.getZ(b)-az,
+            vx=p.getX(c)-ax,vy=p.getY(c)-ay,vz=p.getZ(c)-az;
+      let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+      const L=Math.hypot(nx,ny,nz);
+      if(L>1e-12){fn[3*t]=nx/L;fn[3*t+1]=ny/L;fn[3*t+2]=nz/L}
+    }
+    /* вершины-клоны (одинаковая позиция, разные индексы) ищем по координате */
+    const q=v=>Math.round(v*1e4),keyOf=i=>q(p.getX(i))+","+q(p.getY(i))+","+q(p.getZ(i));
+    const keys=new Array(vc),groups=new Map();
+    for(let i=0;i<vc;i++){keys[i]=keyOf(i);groups.set(keys[i],[])}
+    for(let t=0;t<tri;t++)for(let k=0;k<3;k++){
+      const arr=groups.get(keys[vi(3*t+k)]);
+      if(arr&&arr.indexOf(t)<0)arr.push(t);      /* грань считается один раз */
+    }
+    const out=new Float32Array(vc*3),Buf=p.constructor;
+    for(let i=0;i<vc;i++){
+      const arr=groups.get(keys[i]);
+      if(!arr||!arr.length){out[i*3]=0;out[i*3+1]=1;out[i*3+2]=0;continue}
+      /* опорное направление склейки — среднее по всем граням этой точки */
+      let rx=0,ry=0,rz=0;
+      for(let j=0;j<arr.length;j++){rx+=fn[3*arr[j]];ry+=fn[3*arr[j]+1];rz+=fn[3*arr[j]+2]}
+      let RL=Math.hypot(rx,ry,rz);
+      if(RL>1e-8){rx/=RL;ry/=RL;rz/=RL}else{rx=fn[3*arr[0]];ry=fn[3*arr[0]+1];rz=fn[3*arr[0]+2]}
+      let sx=0,sy=0,sz=0;
+      for(let j=0;j<arr.length;j++){
+        const t=arr[j],x=fn[3*t],y=fn[3*t+1],z=fn[3*t+2];
+        if(x*x+y*y+z*z<.5)continue;              /* вырожденная грань */
+        if(rx*x+ry*y+rz*z>=cosMin){sx+=x;sy+=y;sz+=z}
+      }
+      let L=Math.hypot(sx,sy,sz);
+      if(L<1e-8){sx=rx,sy=ry,sz=rz;L=Math.hypot(sx,sy,sz)}
+      if(L<1e-8){sx=0;sy=1;sz=0;L=1}
+      out[i*3]=sx/L;out[i*3+1]=sy/L;out[i*3+2]=sz/L;
+    }
+    if(!g.attributes.normal||g.attributes.normal.count!==vc)
+      g.setAttribute("normal",new Buf(new Float32Array(vc*3),3));
+    const na=g.attributes.normal;
+    for(let i=0;i<vc*3;i++)na.array[i]=out[i];
+    na.needsUpdate=!0;
+    return 1;
+  }
+  /* Колёса, кронштейны и звёздочки/ленивцы: одна и та же геометрия у модели
+     не переиспользуется, но на всякий случай дедуплицируем по uuid. */
+  function scApplySmooth(deg){
+    C.smoothDeg=Te.clamp(+deg||0,0,179);
+    try{localStorage.setItem("vch.scSmooth",String(C.smoothDeg))}catch(e){}
+    const seen=new Set();let meshes=0;
+    const roots=[];
+    for(const w of wheelRigs){roots.push(w.piv);if(w.arm&&w.arm.node)roots.push(w.arm.node)}
+    for(const g of gearRigs)roots.push(g.piv);
+    for(const root of roots)root.traverse(o=>{
+      if(!o.isMesh||o.isInstancedMesh||!o.geometry)return;
+      const id=o.geometry.uuid;if(seen.has(id))return;seen.add(id);
+      meshes+=scSmoothGeom(o,C.smoothDeg);
+    });
+    return {smoothDeg:C.smoothDeg,meshes};
+  }
   function scGearSeat(k){
     const v=Te.clamp(+k,0,1);
     C.gearSeat=v;
@@ -661,12 +758,16 @@ function mountScorpion(src){
       g.r=b+(tp-b)*v;
     }
     scGearShape();
+    /* сжатие зубьев пересчитывает нормали вычислением — после него катки
+       снова гранёные, поэтому сглаживание накатываем заново */
+    if(C.smoothDeg>0)scApplySmooth(C.smoothDeg);
     for(const t of trackGroups){t.linkCount=0;scRoller(t)}
     return v;
   }
   try{const sv=localStorage.getItem("vch.scSeat");if(sv!=null&&isFinite(+sv))C.gearSeat=Te.clamp(+sv,0,1)}catch(e){}
+  try{const sv=localStorage.getItem("vch.scSmooth");if(sv!=null&&isFinite(+sv))C.smoothDeg=Te.clamp(+sv,0,179)}catch(e){}
   scGearSeat(C.gearSeat);
-  (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat});
+  (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat,smooth:scApplySmooth});
   const D={trackOffsetL:0,trackOffsetR:0,recoil:0,recoilVel:0,wheelDrop:0};
   /* Круги для Lw(): порядок как у ОБТ — ленивец, катки, ведущее, «ролик» */
   function scFill(t){
@@ -846,6 +947,10 @@ function mountScorpion(src){
                 return +v.toFixed(2)},
               bandPath:!!bandPaths[-1]};
   window.__vchScArm=on=>{C.armMove=!!on;return{armMove:C.armMove,arms:armRigs.length}};
+  /* Шейд смуз катков: __vchScSmooth(62) — сгладить, __vchScSmooth(0) — вернуть
+     нормали модели. Угол в градусах: чем больше, тем мягче (кромки тоже
+     замыливаются). Значение хранится в localStorage["vch.scSmooth"]. */
+  window.__vchScSmooth=d=>scApplySmooth(d);
   window.__vchScSeat=v=>({seat:scGearSeat(v),
     gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
       tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});

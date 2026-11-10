@@ -820,6 +820,32 @@ window.__vchNight = {
   });
   scRow.appendChild(scInp);
   scPage.appendChild(scRow);
+  /* ---- тот же таб: сглаживание («шейд смуз») катков Скорпиона ---- */
+  scPage.insertAdjacentHTML("beforeend",
+      '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin:11px 0 9px">'
+    + 'сглаживание нормалей катков и кронштейнов Скорпиона:<br>'
+    + '<b style="color:#cfd6dc">0</b> — как в модели (грани), '
+    + '<b style="color:#cfd6dc">45…90</b> — мягче. Грани, повёрнутые друг к другу '
+    + 'круче этого угла, острыми и остаются.</div>');
+  const smRow = document.createElement("div");
+  smRow.style.cssText = "margin-bottom:7px";
+  smRow.innerHTML = '<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
+    + 'letter-spacing:.08em;margin-bottom:3px"><span>СГЛАЖИВАНИЕ</span><span style="color:#ffc75a"></span></div>';
+  const smInp = document.createElement("input");
+  smInp.type = "range"; smInp.min = 0; smInp.max = 90; smInp.step = 1;
+  smInp.style.cssText = "width:100%;margin:0;accent-color:#ff8a22;cursor:pointer";
+  let smVal = 62;
+  try{ const sv = localStorage.getItem("vch.scSmooth");
+       if(sv != null && isFinite(+sv)) smVal = +sv }catch(e){}
+  smInp.value = smVal;
+  smRow.querySelector("span:last-child").textContent = smVal.toFixed(0) + "°";
+  smInp.addEventListener("input", ()=>{
+    const v = parseFloat(smInp.value);
+    for(const R of (window.__vchScRigs||[])) if(R.smooth) R.smooth(v);
+    smRow.querySelector("span:last-child").textContent = v.toFixed(0) + "°";
+  });
+  smRow.appendChild(smInp);
+  scPage.appendChild(smRow);
   box.appendChild(scPage); pages.push(scPage);
 
   function sync(){
