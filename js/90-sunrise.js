@@ -814,7 +814,7 @@ window.__vchNight = {
   mkPage(FOG, true);
   mkPage(LIT, false);
   /* ---- вкладка 3: посадка ленты Скорпиона на ведущем колесе ---- */
-  mkTab("ГУСЕНИЦА");
+  mkTab("СКОРПИОН");
   const scPage = document.createElement("div");
   scPage.style.display = "none";
   scPage.innerHTML = '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin-bottom:9px">'
@@ -866,6 +866,33 @@ window.__vchNight = {
   });
   smRow.appendChild(smInp);
   scPage.appendChild(smRow);
+  /* ---- тот же таб: фаска (bevel) по всей модели Скорпиона ---- */
+  scPage.insertAdjacentHTML("beforeend",
+      '<div style="color:#8e9aa3;font-size:9.5px;line-height:1.45;margin:11px 0 9px">'
+    + 'фаска по всей модели Скорпиона (кроме катков — у них своё '
+    + 'сглаживание):<br>'
+    + '<b style="color:#cfd6dc">0</b> — рёбра модели как есть, '
+    + '<b style="color:#cfd6dc">60…120</b> — мягче. Считается по нормалям, '
+    + 'силуэт не меняется.</div>');
+  const bvRow = document.createElement("div");
+  bvRow.style.cssText = "margin-bottom:7px";
+  bvRow.innerHTML = '<div style="display:flex;justify-content:space-between;color:#9fb0be;font-size:9.5px;'
+    + 'letter-spacing:.08em;margin-bottom:3px"><span>ФАСКА,°</span><span style="color:#ffc75a"></span></div>';
+  const bvInp = document.createElement("input");
+  bvInp.type = "range"; bvInp.min = 0; bvInp.max = 150; bvInp.step = 5;
+  bvInp.style.cssText = "width:100%;margin:0;accent-color:#ff8a22;cursor:pointer";
+  let bvVal = 100;
+  try{ const sv = localStorage.getItem("vch.scBevel");
+       if(sv != null && isFinite(+sv)) bvVal = +sv }catch(e){}
+  bvInp.value = bvVal;
+  bvRow.querySelector("span:last-child").textContent = bvVal.toFixed(0);
+  bvInp.addEventListener("input", ()=>{
+    const v = parseFloat(bvInp.value);
+    for(const R of (window.__vchScRigs||[])) if(R.bevel) R.bevel(v);
+    bvRow.querySelector("span:last-child").textContent = v.toFixed(0);
+  });
+  bvRow.appendChild(bvInp);
+  scPage.appendChild(bvRow);
   box.appendChild(scPage); pages.push(scPage);
 
   function sync(){

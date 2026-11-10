@@ -61,6 +61,12 @@ const VCH_SC_CFG={
      (1970 вершин на 1052 треугольника), поэтому светятся гранями; 0 —
      выключить и вернуть нормали модели как есть. */
   smoothDeg:62,
+  /* Bevel («фаска») по всей модели: до какого угла между гранями нормаль
+     вершины уходит от плоскости грани. Это скругление по нормалям, а не
+     правка геометрии: силуэт тот же, но рёбра перестают резать светом.
+     Полное усреднение идёт до 30°, дальше вес плавно гаснет к bevelDeg,
+     поэтому прямой угол корпуса получает именно небольшую фаску. 0 — выкл. */
+  bevelDeg:100,
   settings:{restLength:0.550,wheelRadius:0.405,stiffness:1.62e5,damping:5.6e4,
             maxSpeed:15.0,maxReverse:7.0,accel:5.2,reverseAccel:2.9,
             rollK:3.0e5,rollD:2.2e5,rollDead:.012,yawGain:11,yawMax:18},
@@ -748,6 +754,104 @@ function mountScorpion(src){
     });
     return {smoothDeg:C.smoothDeg,meshes};
   }
+  /* ===== Bevel: скругление рёбер по всей модели ==========================
+     Фаску по-настоящему (вставкой граней) на импортированной GLB в рантайме
+     не сделать: пришлось бы перестраивать индексы 139 узлов и ломать UV.
+     Поэтому рёбра скругляются нормалями — так же делают «bevel shader»:
+     вершина у ребра получает нормаль между двумя гранями, и грань ловит
+     свет как фаска. Силуэт не меняется, меняется только свет.
+
+     Вес плавный: до 30° грани усредняются целиком (это одна поверхность),
+     от 30° до bevelDeg вес гасится smoothstep, круче — не трогаем вовсе.
+     Так прямой угол корпуса (~90°) получает фаску примерно в 8°, а не
+     «плывёт» в подушку, как при обычном сглаживании нормалей.            */
+  function scBevelGeom(ch,deg){
+    const g=ch.geometry;
+    if(!g||!g.attributes||!g.attributes.position)return 0;
+    if(!(deg>0)){                                  /* выключено — вернуть как было */
+      const n0=ch.userData.__vchBev0;
+      if(n0){const B=n0.constructor;
+        g.setAttribute("normal",new B(n0.array.slice(0),n0.itemSize,n0.normalized));
+        g.attributes.normal.needsUpdate=!0;return 1}
+      return 0;
+    }
+    const p=g.attributes.position;
+    if(!p||p.isInterleavedBufferAttribute)return 0;
+    const idx=g.index,vc=p.count,tri=idx?Math.floor(idx.count/3):Math.floor(vc/3);
+    if(tri<3)return 0;
+    if(!ch.userData.__vchBev0&&g.attributes.normal)ch.userData.__vchBev0=g.attributes.normal.clone();
+    const vi=t=>idx?idx.getX(t):t;
+    const fn=new Float32Array(tri*3),fa=new Float32Array(tri);
+    for(let t=0;t<tri;t++){
+      const a=vi(3*t),b=vi(3*t+1),c=vi(3*t+2),
+            ax=p.getX(a),ay=p.getY(a),az=p.getZ(a),
+            ux=p.getX(b)-ax,uy=p.getY(b)-ay,uz=p.getZ(b)-az,
+            vx=p.getX(c)-ax,vy=p.getY(c)-ay,vz=p.getZ(c)-az;
+      let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+      const L=Math.hypot(nx,ny,nz);
+      if(L>1e-12){fn[3*t]=nx/L;fn[3*t+1]=ny/L;fn[3*t+2]=nz/L}
+      fa[t]=L*.5;                                  /* площадь грани — её вес */
+    }
+    /* вершины-клоны (одна позиция, разные индексы) — по координате */
+    const q=v=>Math.round(v*1e4),keyOf=i=>q(p.getX(i))+","+q(p.getY(i))+","+q(p.getZ(i));
+    const keys=new Array(vc),groups=new Map();
+    for(let i=0;i<vc;i++){keys[i]=keyOf(i);groups.set(keys[i],[])}
+    for(let t=0;t<tri;t++)for(let k=0;k<3;k++){
+      const arr=groups.get(keys[vi(3*t+k)]);
+      if(arr&&arr.indexOf(t)<0)arr.push(t);
+    }
+    const FULL=Math.min(30,deg*.35),
+          cosFull=Math.cos(FULL*Math.PI/180),cosMax=Math.cos(deg*Math.PI/180),
+          inv=1/Math.max(1e-6,cosFull-cosMax);
+    const out=new Float32Array(vc*3),Buf=p.constructor;
+    for(let i=0;i<vc;i++){
+      const arr=groups.get(keys[i]);
+      if(!arr||!arr.length){out[i*3]=0;out[i*3+1]=1;out[i*3+2]=0;continue}
+      /* опорная нормаль точки — площадное среднее, на неё опирается вес */
+      let rx=0,ry=0,rz=0,rt=0;
+      for(let j=0;j<arr.length;j++){const t=arr[j],w=fa[t]||1;
+        rx+=fn[3*t]*w;ry+=fn[3*t+1]*w;rz+=fn[3*t+2]*w;rt+=w}
+      let RL=Math.hypot(rx,ry,rz);
+      if(RL>1e-8){rx/=RL;ry/=RL;rz/=RL}else{rx=fn[3*arr[0]];ry=fn[3*arr[0]+1];rz=fn[3*arr[0]+2]}
+      let sx=0,sy=0,sz=0;
+      for(let j=0;j<arr.length;j++){
+        const t=arr[j],x=fn[3*t],y=fn[3*t+1],z=fn[3*t+2];
+        if(x*x+y*y+z*z<.5)continue;                /* вырожденная грань */
+        const c=rx*x+ry*y+rz*z;
+        if(c<=cosMax)continue;                     /* острее bevelDeg — не трогаем */
+        const w=(c>=cosFull)?1:(c-cosMax)*inv;
+        const a=(fa[t]||1)*w*w*(3-2*w);            /* smoothstep по косинусу */
+        sx+=x*a;sy+=y*a;sz+=z*a;
+      }
+      let L=Math.hypot(sx,sy,sz);
+      if(L<1e-8){sx=rx;sy=ry;sz=rz;L=Math.hypot(sx,sy,sz)}
+      if(L<1e-8){sx=0;sy=1;sz=0;L=1}
+      out[i*3]=sx/L;out[i*3+1]=sy/L;out[i*3+2]=sz/L;
+    }
+    if(!g.attributes.normal||g.attributes.normal.count!==vc)
+      g.setAttribute("normal",new Buf(new Float32Array(vc*3),3));
+    const na=g.attributes.normal;
+    for(let i=0;i<vc*3;i++)na.array[i]=out[i];
+    na.needsUpdate=!0;
+    return 1;
+  }
+  /* Bevel на всю модель, кроме колёс: у катков и звёздочек свой, более
+     агрессивный режим (smoothDeg), он накатывается поверх. */
+  function scApplyBevel(deg){
+    C.bevelDeg=Te.clamp(+deg||0,0,150);
+    try{localStorage.setItem("vch.scBevel",String(C.bevelDeg))}catch(e){}
+    const skip=new Set();
+    const mark=root=>{ if(!root)return; root.traverse(o=>{ if(o.isMesh)skip.add(o) }) };
+    for(const w of wheelRigs){ mark(w.piv); if(w.arm&&w.arm.node)mark(w.arm.node) }
+    for(const g of gearRigs) mark(g.piv);
+    const seen=new Set();let meshes=0;
+    modelRoot.traverse(o=>{
+      if(!o.isMesh||o.isInstancedMesh||!o.geometry||skip.has(o))return;
+      const id=o.geometry.uuid;if(seen.has(id))return;seen.add(id);
+      meshes+=scBevelGeom(o,C.bevelDeg);
+    });
+    return {bevelDeg:C.bevelDeg,meshes};
+  }
   function scGearSeat(k){
     const v=Te.clamp(+k,0,1);
     C.gearSeat=v;
@@ -766,8 +870,11 @@ function mountScorpion(src){
   }
   try{const sv=localStorage.getItem("vch.scSeat");if(sv!=null&&isFinite(+sv))C.gearSeat=Te.clamp(+sv,0,1)}catch(e){}
   try{const sv=localStorage.getItem("vch.scSmooth");if(sv!=null&&isFinite(+sv))C.smoothDeg=Te.clamp(+sv,0,179)}catch(e){}
+  try{const sv=localStorage.getItem("vch.scBevel");if(sv!=null&&isFinite(+sv))C.bevelDeg=Te.clamp(+sv,0,150)}catch(e){}
   scGearSeat(C.gearSeat);
-  (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat,smooth:scApplySmooth});
+  scApplyBevel(C.bevelDeg);          /* после посадки: колеса уже обработаны */
+
+  (window.__vchScRigs=window.__vchScRigs||[]).push({seat:scGearSeat,smooth:scApplySmooth,bevel:scApplyBevel});
   const D={trackOffsetL:0,trackOffsetR:0,recoil:0,recoilVel:0,wheelDrop:0};
   /* Круги для Lw(): порядок как у ОБТ — ленивец, катки, ведущее, «ролик» */
   function scFill(t){
@@ -951,6 +1058,11 @@ function mountScorpion(src){
      нормали модели. Угол в градусах: чем больше, тем мягче (кромки тоже
      замыливаются). Значение хранится в localStorage["vch.scSmooth"]. */
   window.__vchScSmooth=d=>scApplySmooth(d);
+  /* Bevel («фаска») по всей модели Скорпиона: __vchScBevel(100) — по умолчанию,
+     __vchScBevel(0) — вернуть нормали модели. Угол в градусах: чем больше,
+     тем мягче рёбра (150 — почти полное сглаживание). Хранится в
+     localStorage["vch.scBevel"]. */
+  window.__vchScBevel=d=>scApplyBevel(d);
   window.__vchScSeat=v=>({seat:scGearSeat(v),
     gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
       tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});
