@@ -27,7 +27,14 @@ const VCH_NIGHT_SKY = {src:"Poly Haven · qwantani_sunrise_puresky", lic:"CC0", 
 const VCH_NIGHT = {
   az:0.95,            /* поворот панорамы: солнце (0.628 рад) оказывается над морем по курсу спавна */
   el:0.0,             /* наклон панорамы: горизонт HDRI совпадает с игровым */
-  gain:0.74,          /* яркость неба в кадре */
+  gain:0.32,          /* яркость неба в кадре; было 0.74 — солнце в данных HDRI
+                         выжигало кадр: при взгляде на него выгорало 24.6% пикселей,
+                         на машине 12%. Освещение техники от этого не зависит
+                         (IBL считается из панорамы без gain), поэтому небо можно
+                         гасить свободно: при 0.32 в солнце выгорает 11%, на
+                         машине 0%. Диск солнца (moonDisk) и дымка тумана (glow)
+                         в этот пересвет почти не вносят — проверено по отдельности.
+                         Правится ползунком «Небо HDRI» во вкладке СВЕТ (F) */
   contrast:1.05,      /* контраст неба: гасит дымку (pow в линейном) */
   sharpen:0.55,       /* unsharp по панораме: облака не «мылятся» на куполе */
   texel:[1/4096, 1/2048],  /* заменяется реальным размером панорамы в domeMat() */
@@ -632,6 +639,8 @@ window.__vchNight = {
   /* --- свет/экспозиция --- */
   const LIT = [
     {k:"exposure", t:"Экспозиция",           min:0.40, max:1.60, step:0.01, fmt:v=>v.toFixed(2)},
+    {k:"gain",     t:"Небо HDRI",            min:0.20, max:1.20, step:0.01, fmt:v=>v.toFixed(2)},
+    {k:"moonDisk", t:"Диск солнца",          min:0,    max:20.0, step:0.5,  fmt:v=>v.toFixed(1)},
     {k:"envGain",  t:"Окружение (небо IBL)", min:0,    max:2.50, step:0.05, fmt:v=>v.toFixed(2)},
     {k:"moonI",    t:"Солнце",               min:0,    max:4.00, step:0.05, fmt:v=>v.toFixed(2)},
     {k:"hemiI",    t:"Небо (hemi)",          min:0,    max:2.00, step:0.05, fmt:v=>v.toFixed(2)},
@@ -646,6 +655,7 @@ window.__vchNight = {
     base:VCH_FOG.base, mist:VCH_FOG.mist, scaleH:VCH_FOG.scaleH,
     glow:VCH_FOG.glow, horizon:VCH_FOG.horizon, fogD:VCH_NIGHT.fogD,
     exposure:VCH_NIGHT.exposure, envGain:VCH_NIGHT.envGain, moonI:VCH_NIGHT.moonI,
+    gain:VCH_NIGHT.gain, moonDisk:VCH_NIGHT.moonDisk,
     hemiI:VCH_NIGHT.hemiI, fillI:VCH_NIGHT.fillI,
     refl:(typeof VCH_REFLECT_GAIN === "number") ? VCH_REFLECT_GAIN : 1,
     tm:GRADE.tm, contrast:GRADE.contrast
@@ -655,6 +665,8 @@ window.__vchNight = {
     switch(k){
       case "fogD":     return VCH_NIGHT.fogD;
       case "exposure": return VCH_NIGHT.exposure;
+      case "gain":     return VCH_NIGHT.gain;
+      case "moonDisk": return VCH_NIGHT.moonDisk;
       case "envGain":  return VCH_NIGHT.envGain;
       case "moonI":    return VCH_NIGHT.moonI;
       case "hemiI":    return VCH_NIGHT.hemiI;
@@ -669,6 +681,8 @@ window.__vchNight = {
     switch(k){
       case "fogD":     VCH_NIGHT.fogD = v; break;
       case "exposure": VCH_NIGHT.exposure = v; break;
+      case "gain":     VCH_NIGHT.gain = v; break;
+      case "moonDisk": VCH_NIGHT.moonDisk = v; break;
       case "envGain":  VCH_NIGHT.envGain = v; break;
       case "moonI":    VCH_NIGHT.moonI = v; break;
       case "hemiI":    VCH_NIGHT.hemiI = v; break;
@@ -683,6 +697,12 @@ window.__vchNight = {
   /* мягкая перестановка света: без пересборки теней и без PMREM */
   function applyLight(){
     try{ Jn.toneMappingExposure = VCH_NIGHT.exposure }catch(e){}
+    /* яркость самой панорамы и диск солнца — uniform'ы купола */
+    try{
+      const u = VCH_NIGHT_MAT && VCH_NIGHT_MAT.uniforms;
+      if(u && u.uGain)   u.uGain.value   = VCH_NIGHT.gain;
+      if(u && u.uMoonI)  u.uMoonI.value  = VCH_NIGHT.moonDisk;
+    }catch(e){}
     try{ if(cn) cn.environmentIntensity = VCH_NIGHT.envGain }catch(e){}
     try{
       const sun = (typeof vSunLight === "function") ? vSunLight() : null;
