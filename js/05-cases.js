@@ -46,7 +46,56 @@ function V_makeCase(){
   return g;
 }
 /* один выстрел = одна гильза, выброс через 1.0 с */
-function V_ejectSchedule(){V_caseDelay=1.0}
+function V_ejectSchedule(){V_caseDelay=1.0;V_boltKick()}
+
+/* --- откат казённика -------------------------------------------------------
+   Скорпион: back_plate_01_Low и Main_frame_01_Low — детали казённика, лежат
+   на башне (tower_Low) позади оси цапф. Ствол смотрит в локальный +X башни,
+   поэтому откат идёт по −X. Обе детали идут ОДНОВРЕМЕННО: назад сразу после
+   выстрела, гильза вылетает при откате, потом детали возвращаются.          */
+const V_BOLT={rig:null,nodes:[],base:[],axis:new P(-1,0,0),
+              stroke:.45,        /* ход назад, локальные единицы модели */
+              out:.10,back:.18,  /* с · время отката и возврата */
+              phase:0,t:0,hold:0};
+function V_boltSet(u){                     /* u: 0 — на месте, 1 — назад */
+  for(let i=0;i<V_BOLT.nodes.length;i++)
+    V_BOLT.nodes[i].position.copy(V_BOLT.base[i])
+      .addScaledVector(V_BOLT.axis,V_BOLT.stroke*u);
+}
+function V_boltBind(){
+  if(V_BOLT.phase!==0&&V_BOLT.nodes.length)V_boltSet(0);   /* прежний танк — на место */
+  V_BOLT.nodes.length=0;V_BOLT.base.length=0;
+  V_BOLT.phase=0;V_BOLT.t=0;V_BOLT.hold=0;V_BOLT.rig=qt||null;
+  if(!qt||!qt.group)return;
+  const want=["back_plate_01_low","main_frame_01_low"];
+  qt.group.traverse(o=>{
+    if(!o.isMesh)return;
+    const n=(o.name||"").toLowerCase();
+    if(want.indexOf(n)>=0){V_BOLT.nodes.push(o);V_BOLT.base.push(o.position.clone())}
+  });
+}
+function V_boltKick(){
+  if(V_BOLT.rig!==qt)V_boltBind();
+  if(!V_BOLT.nodes.length)return;
+  V_BOLT.phase=1;V_BOLT.t=0;V_BOLT.hold=0;
+}
+function V_boltTick(dt){
+  if(V_BOLT.rig!==qt)V_boltBind();
+  if(!V_BOLT.nodes.length||V_BOLT.phase===0)return;
+  V_BOLT.t+=dt;
+  if(V_BOLT.phase===1){                                    /* назад */
+    const u=Math.min(1,V_BOLT.t/V_BOLT.out);
+    V_boltSet(u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2);
+    if(u>=1){V_BOLT.phase=2;V_BOLT.t=0}
+  }else if(V_BOLT.phase===2){                              /* стоим, ждём гильзу */
+    V_boltSet(1);
+    if(V_BOLT.hold>0){V_BOLT.hold-=dt;if(V_BOLT.hold<=0){V_BOLT.phase=3;V_BOLT.t=0}}
+  }else{                                                   /* вперёд */
+    const u=Math.min(1,V_BOLT.t/V_BOLT.back);
+    V_boltSet(1-Math.pow(1-u,3));
+    if(u>=1){V_BOLT.phase=0;V_BOLT.t=0;V_boltSet(0)}
+  }
+}
 function V_ejectSpawn(){
   if(!qt||!qt.casePort)return;
   const port=qt.casePort;
@@ -69,6 +118,7 @@ function V_ejectSpawn(){
   V_CASES.push({m:mesh,vel,ang:new P(5+Math.random()*4,4+Math.random()*5,7+Math.random()*5),
                 t:0,rest:!1,sleep:0});
   if(V_CASES.length>36){const old=V_CASES.shift();cn.remove(old.m)}
+  V_BOLT.hold=.12;                       /* гильза ушла — казённик закрывается */
 }
 function V_clink(gain,freq){
   if(!an||!an.started||!an._noiseBurst)return;
@@ -96,6 +146,7 @@ function V_ejectTick(dt){
     }
     fp.rotation.x=V_FLAP.ang;
   }
+  V_boltTick(dt);
   /* --- cases in flight / on the ground --- */
   const spin=new gn(),axis=new P();
   for(let i=V_CASES.length-1;i>=0;i--){
