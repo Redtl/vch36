@@ -32,6 +32,7 @@ js/06e-aleksandrovsk.js
 js/06d-map01-look.js
 js/07a-audio-pcm.js
 js/07-audio.js
+js/07b-meshopt.js
 js/08-scorpion.js
 js/09-fleet.js
 js/10-ai.js
@@ -75,12 +76,13 @@ js/90-sunrise.js
     };
     var files = ["vendor/three-cannon.js"]
       .concat((dataByMap[map] || []).map(function(f){ return "data/" + f + ".js" }))
-      .concat(["data/scorpion-glb.js"])          /* второй танк нужен на любой карте */
+      /* Модель Скорпиона (10.4 МБ) НЕ входит в основной список: она уехала в
+         tail, чтобы стартовое меню появилось не дожидаясь её закачки. */
       .concat([
         "js/01-core.js","js/02-tank.js","js/03-dynamics.js","js/04-visual.js","js/05-cases.js",
         "js/06-world.js","js/06a-aleksandrovsk-data.js","js/06c-map01-sky-data.js","js/06b-map01.js",
         "js/06e-aleksandrovsk.js","js/06d-map01-look.js","js/07a-audio-pcm.js","js/07-audio.js",
-        "js/08-scorpion.js","js/09-fleet.js","js/10-ai.js","js/11-rockets.js","js/12-drive.js",
+        "js/07b-meshopt.js","js/08-scorpion.js","js/09-fleet.js","js/10-ai.js","js/11-rockets.js","js/12-drive.js",
         "js/13-range.js","js/14-track.js","js/15-battle.js","js/16-ui.js","js/17-cam.js",
         "js/18-boot.js","js/19-look.js","js/90-sunrise.js"
       ]);
@@ -88,7 +90,7 @@ js/90-sunrise.js
        отрисовано — например данные второй локации, если игрок переключит
        карту в меню без перезагрузки страницы. Список пуст: сейчас смена
        карты идёт через location.href, и всё нужное лежит в цепочке. */
-    var tail = [];
+    var tail = ["data/scorpion-glb.js"];   /* второй танк: 10.4 МБ, не держим меню */
     window.__vchFiles = files;
     window.__vchLoaded = [];
     function step(list){

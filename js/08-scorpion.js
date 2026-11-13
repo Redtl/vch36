@@ -66,7 +66,22 @@ const pa=new Ef;let qo=0;const Xo=1/60;let Yo=0,Pc=0;function np(){requestAnimat
      сработать между модулями. Кадр стартует только после того, как весь код
      загружен (флаг ставится в конце 18-boot.js). */
   if(window.__vchBooted!==!0)return;
-  const r=Math.min(pa.getDelta(),.05);ip(window.__vchPaused===!0?0:r,!0)}const VCH_SCORPION_B64=VCH_SCORPION_B64_DATA;
+  const r=Math.min(pa.getDelta(),.05);ip(window.__vchPaused===!0?0:r,!0)}/* Модель весит 10.4 МБ, поэтому лежит в «хвосте» загрузчика (см. tail в
+   index.html): стартовое меню появляется, не дожидаясь её закачки, а танк
+   встаёт в строй через 1-3 с. Если данные уже в памяти (сборка одним файлом
+   или хвост успел догрузиться) — берём их сразу. */
+function vchScorpionB64(){
+  if(typeof VCH_SCORPION_B64_DATA!=="undefined")return Promise.resolve(VCH_SCORPION_B64_DATA);
+  return new Promise(function(ok,no){
+    const t0=Date.now();
+    (function wait(){
+      if(typeof VCH_SCORPION_B64_DATA!=="undefined")return ok(VCH_SCORPION_B64_DATA);
+      if(window.__vchAllDone||Date.now()-t0>6e4)
+        return no(new Error("данные модели Scorpion не загрузились"));
+      setTimeout(wait,60);
+    })();
+  });
+}
 /* ============================================================================
    VCH · ВТОРОЙ ТАНК: SCORPION (GLB)  — собственный риг и собственная физика
    ОБТ-36 остаётся танком №1; Kt не меняется.
@@ -131,11 +146,41 @@ const vchScNorm=n=>String(n||"").toLowerCase().replace(/[\s._\-]+/g,"");
 function vchScFind(root,key){const k=vchScNorm(key);let hit=null;root.traverse(o=>{if(!hit&&vchScNorm(o.name)===k)hit=o});return hit}
 function vchScFindRe(root,re){let hit=null;root.traverse(o=>{if(!hit&&o.name&&re.test(o.name))hit=o});return hit}
 
+/* glTF требует выравнивания элементов по 4 байта, поэтому квантованный VEC3
+   (3 x int16 = 6 байт) лежит с шагом 8. three.js видит byteStride != размеру
+   элемента и собирает такие атрибуты как InterleavedBufferAttribute, а у того
+   нет работающего clone() — игра клонирует геометрию катков (shrinkRadial) и
+   падает. Раскладываем их в обычные BufferAttribute: данных становится даже
+   меньше (шаг 8 -> 6), а дальше всё работает как с прежней моделью. */
+function vchDeinterleave(root){
+  let n=0;
+  root.traverse(function(o){
+    if(!o.isMesh||!o.geometry)return;
+    const g=o.geometry,names=[];
+    for(const k in g.attributes) if(g.attributes[k]&&g.attributes[k].isInterleavedBufferAttribute) names.push(k);
+    if(!names.length)return;
+    for(const k of names){
+      const a=g.attributes[k],cnt=a.count,c=a.itemSize,src=a.array,st=a.data.stride,off=a.offset;
+      const out=new src.constructor(cnt*c);
+      for(let i=0;i<cnt;i++)for(let j=0;j<c;j++) out[i*c+j]=src[off+i*st+j];
+      const na=new Ve(out,c);
+      na.normalized=!!a.normalized;
+      g.setAttribute(k,na); n++;
+    }
+  });
+  return n;
+}
+
 async function vchScorpionGLB(){
-  const s=VCH_SCORPION_B64,b=atob(s),u=new Uint8Array(b.length);
+  /* модель сжата EXT_meshopt_compression — декодер подключаем до разбора */
+  if(typeof VCH_MeshoptDecoder!=="undefined"&&typeof Wf!=="undefined")
+    Wf.setMeshoptDecoder(VCH_MeshoptDecoder);
+  const s=await vchScorpionB64(),b=atob(s),u=new Uint8Array(b.length);
   for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
   const ab=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
-  return (await k1(ab)).scene;
+  const sc=(await k1(ab)).scene;
+  vchDeinterleave(sc);
+  return sc;
 }
 
 /* ---- лента: оболочка набора окружностей (z,y) ------------------------------ */
