@@ -113,9 +113,12 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http")){
     sessionStorage.setItem("vch.sw.reloaded","1");
     location.reload();
   });
-  window.addEventListener("load",()=>{
+  const swRegister=()=>{
     navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(err=>console.warn("[sw]",err));
-  });
+  };
+  /* 4.3: код подключается загрузчиком, поэтому событие load могло уже пройти */
+  if(document.readyState==="complete")swRegister();
+  else window.addEventListener("load",swRegister);
 }
 /* Полный сброс кэша (консоль или пауза): снимает SW, чистит Cache Storage.
    После перезагрузки браузер гарантированно берёт файлы с сервера. */

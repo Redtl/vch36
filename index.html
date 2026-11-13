@@ -7,46 +7,125 @@
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
   <link rel="stylesheet" href="css/app.css" />
-    <!-- вендорный бандл: three.js (MIT) + cannon-es (MIT) -->
-    <script defer src="vendor/three-cannon.js"></script>
-
-    <!-- данные (генерируются, руками не править): подключаются ДО кода -->
-    <script defer src="data/aleksandrovsk-glb.js"></script>
-    <script defer src="data/aleksandrovsk-heightfield.js"></script>
-    <script defer src="data/map01-glb.js"></script>
-    <script defer src="data/map01-heightfield.js"></script>
-    <script defer src="data/map01-sky-hdri.js"></script>
-    <script defer src="data/scorpion-glb.js"></script>
-    <script defer src="data/sunrise-sky-hdri.js"></script>
-
-    <!-- код: порядок загрузки обязателен (общая область видимости
-         classic-скриптов: 06a -> 06c -> 06b -> 06e -> 06d) -->
-    <script defer src="js/01-core.js"></script>
-    <script defer src="js/02-tank.js"></script>
-    <script defer src="js/03-dynamics.js"></script>
-    <script defer src="js/04-visual.js"></script>
-    <script defer src="js/05-cases.js"></script>
-    <script defer src="js/06-world.js"></script>
-    <script defer src="js/06a-aleksandrovsk-data.js"></script>
-    <script defer src="js/06c-map01-sky-data.js"></script>
-    <script defer src="js/06b-map01.js"></script>
-    <script defer src="js/06e-aleksandrovsk.js"></script>
-    <script defer src="js/06d-map01-look.js"></script>
-    <script defer src="js/07a-audio-pcm.js"></script>
-    <script defer src="js/07-audio.js"></script>
-    <script defer src="js/08-scorpion.js"></script>
-    <script defer src="js/09-fleet.js"></script>
-    <script defer src="js/10-ai.js"></script>
-    <script defer src="js/11-rockets.js"></script>
-    <script defer src="js/12-drive.js"></script>
-    <script defer src="js/13-range.js"></script>
-    <script defer src="js/14-track.js"></script>
-    <script defer src="js/15-battle.js"></script>
-    <script defer src="js/16-ui.js"></script>
-    <script defer src="js/17-cam.js"></script>
-    <script defer src="js/18-boot.js"></script>
-    <script defer src="js/19-look.js"></script>
-    <script defer src="js/90-sunrise.js"></script>
+  <!-- vch-files-start
+       ПОРЯДОК ДЛЯ СБОРКИ ОДНОГО ФАЙЛА (tools/build-single.py).
+       В развёрнутой версии скрипты подключает загрузчик ниже и берёт
+       только данные выбранной карты; в один файл кладём всё сразу.
+vendor/three-cannon.js
+data/aleksandrovsk-glb.js
+data/aleksandrovsk-heightfield.js
+data/map01-glb.js
+data/map01-heightfield.js
+data/map01-sky-hdri.js
+data/scorpion-glb.js
+data/sunrise-sky-hdri.js
+js/01-core.js
+js/02-tank.js
+js/03-dynamics.js
+js/04-visual.js
+js/05-cases.js
+js/06-world.js
+js/06a-aleksandrovsk-data.js
+js/06c-map01-sky-data.js
+js/06b-map01.js
+js/06e-aleksandrovsk.js
+js/06d-map01-look.js
+js/07a-audio-pcm.js
+js/07-audio.js
+js/08-scorpion.js
+js/09-fleet.js
+js/10-ai.js
+js/11-rockets.js
+js/12-drive.js
+js/13-range.js
+js/14-track.js
+js/15-battle.js
+js/16-ui.js
+js/17-cam.js
+js/18-boot.js
+js/19-look.js
+js/90-sunrise.js
+  -->
+  <!--
+    4.3 · ЗАГРУЗЧИК. Раньше в разметке лежали 34 тега <script defer> и браузер
+    качал все карты разом: 21.8 МБ JS, из которых карте-полигону нужны 1.5 МБ.
+    Парсинг такого объёма и был тем самым «браузер грузится и подвисает».
+    Теперь скрипты подключаются этим загрузчиком: сначала вендор, потом ТОЛЬКО
+    данные выбранной карты, потом код. Порядок выполнения сохраняется —
+    классическим скриптам он обязателен (общая область видимости).
+  -->
+  <script>
+  (function(){
+    /* Карта выбирается ровно так же, как в js/03-dynamics.js: параметр ?map=,
+       потом сохранённый выбор, потом Александровск по умолчанию. */
+    var map = (new URLSearchParams(location.search).get("map") || (function(){
+        try{ return localStorage.getItem("vch36.map") || "aleksandrovsk" }catch(e){ return "polygon" }
+      })()).toLowerCase();
+    /* какие файлы данных нужны какой карте; полигону/песочнице/космосу не нужны ни GLB, ни HDRI */
+    /* ВНИМАНИЕ: имена файлов данных НЕ совпадают с именами в коде (так их кладёт
+       tools/inline_map.py), соответствие проверено по содержимому:
+         ?map=aleksandrovsk -> VCH_ALEKS_DATA (aleksandrovsk_mm.glb, 495x515)
+                               лежит в data/map01-glb.js + map01-heightfield.js
+         ?map=map01         -> VCH_MAP01_DATA (map_full.glb, 598x601)
+                               лежит в data/aleksandrovsk-glb.js + aleksandrovsk-heightfield.js
+       HDRI: sunrise-sky-hdri (4096x2048) — Александровск, map01-sky-hdri — карта 01. */
+    var dataByMap = {
+      aleksandrovsk: ["sunrise-sky-hdri", "map01-glb", "map01-heightfield"],
+      map01:         ["map01-sky-hdri", "aleksandrovsk-glb", "aleksandrovsk-heightfield"]
+    };
+    var files = ["vendor/three-cannon.js"]
+      .concat((dataByMap[map] || []).map(function(f){ return "data/" + f + ".js" }))
+      .concat(["data/scorpion-glb.js"])          /* второй танк нужен на любой карте */
+      .concat([
+        "js/01-core.js","js/02-tank.js","js/03-dynamics.js","js/04-visual.js","js/05-cases.js",
+        "js/06-world.js","js/06a-aleksandrovsk-data.js","js/06c-map01-sky-data.js","js/06b-map01.js",
+        "js/06e-aleksandrovsk.js","js/06d-map01-look.js","js/07a-audio-pcm.js","js/07-audio.js",
+        "js/08-scorpion.js","js/09-fleet.js","js/10-ai.js","js/11-rockets.js","js/12-drive.js",
+        "js/13-range.js","js/14-track.js","js/15-battle.js","js/16-ui.js","js/17-cam.js",
+        "js/18-boot.js","js/19-look.js","js/90-sunrise.js"
+      ]);
+    /* Хвост: подгружается уже после того, как вся цепочка выполнена и меню
+       отрисовано — например данные второй локации, если игрок переключит
+       карту в меню без перезагрузки страницы. Список пуст: сейчас смена
+       карты идёт через location.href, и всё нужное лежит в цепочке. */
+    var tail = [];
+    window.__vchFiles = files;
+    window.__vchLoaded = [];
+    function step(list){
+      /* Теги вставляются все сразу: с async=false браузер КАЧАЕТ их параллельно,
+         а ВЫПОЛНЯЕТ строго в порядке вставки. Так загрузка не вырождается в
+         цепочку последовательных запросов, а порядок остаётся как у defer. */
+      if(list === tail) window.__vchTail = true;
+      let done = 0;
+      list.forEach(function(f){
+        const s = document.createElement("script");
+        s.src = f;
+        s.async = false;
+        const fin = function(ok){
+          if(ok){
+            window.__vchLoaded.push(f);
+            /* метки: по разнице между соседними видно, сколько стоит каждый файл */
+            (window.__vchT||(window.__vchT=[])).push([f, Math.round(performance.now())]);
+          }
+          else console.error("[vch] не загрузился " + f);
+          if(++done >= list.length){
+            if(list === tail) window.__vchAllDone = true;
+            else { window.__vchScriptsDone = true; step(tail) }
+          }
+        };
+        s.onload = function(){ fin(true) };
+        s.onerror = function(){ fin(false) };
+        document.head.appendChild(s);
+      });
+    }
+    /* Код должен выполняться только когда разметка готова: раньше это
+       обеспечивал defer (выполнение после разбора документа), а динамически
+       вставленный скрипт стартует сразу по загрузке. */
+    if(document.readyState === "loading")
+      document.addEventListener("DOMContentLoaded", function(){ step(files) }, {once:true});
+    else step(files);
+  })();
+  </script>
   </head>
 
 <body>

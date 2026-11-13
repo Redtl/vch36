@@ -17,6 +17,6 @@ const VCH_MAP01_DATA={
   yMin:-11.022647, yMax:14.642319, yTop:-4.200000,
   tankCenter:[-10.8048,-3.3001,21.7142],
   tank:{name:"BerserkBody",L:5.7614,W:3.6611,H:1.8782,center:[-10.8048,-3.3001,21.7142],scaleW:0.8877,scaleL:1.0553,scaleH:1.7943,scale:1.7835,mapScale:1.5000},
-  glbGz:VCH_ALEKS_GLB_GZ,
-  hf:VCH_ALEKS_HF_B64
+  get glbGz(){return (typeof VCH_ALEKS_GLB_GZ!=="undefined")?VCH_ALEKS_GLB_GZ:window.VCH_ALEKS_GLB_GZ},
+  get hf(){return (typeof VCH_ALEKS_HF_B64!=="undefined")?VCH_ALEKS_HF_B64:window.VCH_ALEKS_HF_B64}
 };

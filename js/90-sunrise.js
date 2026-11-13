@@ -22,7 +22,8 @@
 window.__VCH_NIGHT__ = true;
 
 const VCH_NIGHT_SKY = {src:"Poly Haven · qwantani_sunrise_puresky", lic:"CC0", w:4096, h:2048,
-  moon:[0.8076340316792885,0.037573682709270494,0.5884857595907661], data:VCH_NIGHT_SKY_DATA_B64};
+  moon:[0.8076340316792885,0.037573682709270494,0.5884857595907661],
+  get data(){return (typeof VCH_NIGHT_SKY_DATA_B64!=="undefined")?VCH_NIGHT_SKY_DATA_B64:window.VCH_NIGHT_SKY_DATA_B64}};
 
 const VCH_NIGHT = {
   az:0.95,            /* поворот панорамы: солнце (0.628 рад) оказывается над морем по курсу спавна */
@@ -77,8 +78,16 @@ function VCH_NIGHT_decode(b64){
     const rgb = b.subarray(9);
     if(rgb.length !== w*h*4) throw new Error("VCHE1: размер данных");
     const out = new Float32Array(w*h*4);
+    /* 4.3: 4096x2048 = 8.4 млн пикселей, и Math.pow на каждом стоил больше
+       секунды прямо в стартовом меню. Степень двойки целочисленная, поэтому
+       все 256 значений считаются один раз в таблицу. */
+    const EXP = window.__vchNightExp || (window.__vchNightExp = (function(){
+      const t = new Float32Array(256);
+      for(let e=0;e<256;e++) t[e] = e>0 ? Math.pow(2,e-136) : 0;
+      return t;
+    })());
     for(let i=0,p=0;i<w*h;i++,p+=4){
-      const e = rgb[p+3], f = e>0 ? Math.pow(2,e-136) : 0;
+      const f = EXP[rgb[p+3]];
       out[i*4] = rgb[p]*f; out[i*4+1] = rgb[p+1]*f; out[i*4+2] = rgb[p+2]*f; out[i*4+3] = 1;
     }
     const tex = new hf(out,w,h,bn,Un);  /* DataTexture, RGBA, FloatType */

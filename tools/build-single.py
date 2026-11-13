@@ -16,10 +16,20 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "dist", "vch36.si
 
 html = io.open(os.path.join(ROOT, "index.html"), encoding="utf-8", errors="surrogateescape").read()
 
-# 1. порядок скриптов
+# 1. порядок скриптов.
+#    Раньше в разметке лежали теги <script defer src=...>. Теперь скрипты
+#    подключает загрузчик (и берёт только данные выбранной карты), поэтому
+#    порядок для сборки лежит в комментарии-маркере vch-files-start: в один
+#    файл кладём все локации сразу.
 srcs = re.findall(r'<script defer src="([^"]+)"></script>', html)
 if not srcs:
-    sys.exit("в index.html не найдены теги <script defer src=...>")
+    m = re.search(r"<!-- vch-files-start(.*?)-->", html, re.S)
+    if not m:
+        sys.exit("в index.html не найден ни тег <script defer src=...>, ни блок vch-files-start")
+    srcs = [l.strip() for l in m.group(1).splitlines()
+            if l.strip().startswith(("vendor/", "data/", "js/"))]
+if not srcs:
+    sys.exit("пустой список файлов для сборки")
 
 parts = []
 for rel in srcs:
@@ -29,6 +39,10 @@ for rel in srcs:
     parts.append(io.open(path, encoding="utf-8", errors="surrogateescape").read().rstrip() + "\n")
 
 bundle = "\n".join(parts)
+if "<script defer src=" not in html:
+    # загрузчик остался в <head> исходника и в сборку не попал — говорим коду,
+    # что цепочка скриптов выполнена (в монолите весь код уже внутри).
+    bundle = "window.__vchScriptsDone=true;window.__vchAllDone=true;\n" + bundle
 
 # 2. css
 css = io.open(os.path.join(ROOT, "css", "app.css"), encoding="utf-8", errors="surrogateescape").read()

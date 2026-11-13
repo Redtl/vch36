@@ -26,6 +26,7 @@ const VCH_ALEKS={
 
 (function VCH_ALEKS_init(){
   const D=VCH_ALEKS_DATA;
+  if(!D||!D.hf)return;        /* карта не выбрана — данных этой локации не загружено */
   let S=D.S||1;
   const q=new URLSearchParams(location.search).get("scale");
   if(q!==null){const n=+q;if(isFinite(n)&&n>=.2&&n<=20)S=n}

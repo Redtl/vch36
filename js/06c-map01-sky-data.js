@@ -8,5 +8,5 @@ const VCH_MAP01_SKY={
   name:"industrial_sunset_02_puresky",
   w:512, h:256,
   sun:[0.80647,0.03067,0.59048],
-  data:VCH_MAP01_SKY_DATA_B64
+  get data(){return (typeof VCH_MAP01_SKY_DATA_B64!=="undefined")?VCH_MAP01_SKY_DATA_B64:window.VCH_MAP01_SKY_DATA_B64}
 };
