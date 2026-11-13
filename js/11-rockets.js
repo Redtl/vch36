@@ -21,16 +21,16 @@ const VCH_RK={
   range:170, lockTime:.8, reload:26, gap:.12,
   ejectT:.42, ejectV:16,
   thrust:1900, burnT:1.6, dryM:10.2, fuelM:4.6, pitchT:1.0, maxGPitch:26, turnRateV:3.4,
-  kDrag:.0058, pn:3.4, maxG:34, turnRate:3.2, fuze:4.2, life:16, blastR:5.5,
+  kDrag:.0058, pn:3.4, maxG:70, turnRate:4.5, fuze:4.2, life:16, blastR:5.5,
   /* навесная траектория: после схода с направляющей ракета уходит вверх и
      выходит на цель сверху. Набор тем сильнее, чем дальше цель; если цель
      ниже точки пуска — горки нет, иначе ракета пролетает над низиной. */
-  climbT:1.8, climbG:30, climbSpan:120, diveDist:70, launchUp:.9, pnDist:95, pnHerr:.34,
-  ceilingK:.15,          /* потолок горки — доля от дальности до цели */
-  ceilingMax:15,         /* м · жёсткий потолок: выше ракета не успевает спикировать */
+  climbT:1.7, climbG:32, climbSpan:120, diveDist:70, launchUp:1.8, pnDist:170, pnHerr:1.2,
+  ceilingK:.18,          /* потолок горки — доля от дальности до цели */
+  ceilingMax:42,         /* м · жёсткий потолок: выше ракета не успевает спикировать */
   fadeOut:25,            /* м до предела дальности, где горка уже не нужна */
   held:!1, wasHeld:!1, lock:0, state:"idle", salvo:[], fireT:0,
-  pods:[], podsUp:0, elevT:35, elev:0, deployT:.55, stowT:.7, straighten:3.0, turnRateV:5.0, turnRateW:2.6, pitchG:22,
+  pods:[], podsUp:0, elevT:35, elev:0, deployT:.55, stowT:.7, straighten:3.0, turnRateV:5.0, turnRateW:4.0, pitchG:22,
   target:null, tpos:new P(), tvel:new P(), reloadT:0, hint:"", shotsFired:0, lastHit:null
 };
 window.__vchRK=VCH_RK;
@@ -599,19 +599,29 @@ function vchRocketStep(r,dt){
         aPN=new P().crossVectors(omega,los).multiplyScalar(RK.pn*Math.max(Vc,90));
         aCmd.add(aPN);
       }
-      /* набор высоты: первые climbT секунд горения, пока цель дальше diveDist
-         и не ниже точки пуска, команду добавляет перегрузку вверх. Так
-         траектория становится навесной, а не стелющейся у самой земли. */
-      if(RK.climbT>0&&t0>0&&t0<RK.climbT&&dist>RK.diveDist&&(tpos.y-r.launchY)>-3){
-        /* потолок горки: чем ближе цель, тем ниже апогей, иначе на предельной
-           дальности ракета не успевает выйти на цель и клюёт в землю */
-        /* потолок: и доля от дальности, и жёсткий предел. Выше 15 м ракета
-           уже не успевает выйти на цель — клюёт в землю, не добрав 25 м. */
-        const gh0=ge(r.pos.x,r.pos.z);
-        const ceil=Math.min(RK.ceilingK*dist,RK.ceilingMax);
-        if(r.pos.y-gh0 < ceil)
-          aCmd.addScaledVector(VCH_RK_UP,
-            RK.climbG*9.81*Math.min(1,(dist-RK.diveDist)/RK.climbSpan));
+      /* Набор высоты. Пока идёт участок горки, ракетой управляет ТОЛЬКО
+         программа набора: выравнивание на линию визирования тянет нос вниз
+         (цель ниже задраной ракеты) и почти полностью съедает команду вверх,
+         поэтому на это время оно отключается. Высота ограничена потолком —
+         и долей от дальности, и жёстким пределом: выше ракета не успевает
+         выйти на цель и клюёт в землю. */
+      const climbing = RK.climbT>0&&t0>0&&t0<RK.climbT&&dist>RK.diveDist
+                    && (tpos.y-r.launchY)>-3
+                    && (r.pos.y-ge(r.pos.x,r.pos.z)) < Math.min(RK.ceilingK*dist,RK.ceilingMax);
+      if(climbing){
+        /* Держим угол набора: команда считается поперёк скорости и
+           поворачивает вектор скорости к направлению с этим углом места.
+           Просто «тянуть вверх» нельзя — как только нос задран, команда
+           почти параллельна скорости и вычитается проекцией, поэтому набор
+           захлёбывался на 35 м, сколько ни добавляй перегрузки. */
+        const hz=new P(los.x,0,los.z);
+        if(hz.lengthSq()<1e-6)hz.set(r.vel.x,0,r.vel.z);
+        if(hz.lengthSq()<1e-6)hz.set(0,0,1);
+        hz.normalize();
+        const want=hz.multiplyScalar(Math.cos(RK.climbAng))
+                     .addScaledVector(VCH_RK_UP,Math.sin(RK.climbAng));
+        aCmd.copy(VCH_RK_UP).multiplyScalar(
+          RK.climbG*9.81*Math.min(1,(dist-RK.diveDist)/RK.climbSpan));
       }
       r.dbg={str:+aStr.y.toFixed(1),pn:aPN?+aPN.y.toFixed(1):null};
       const late=r.age>RK.ejectT+RK.pitchT*1.15;   /* доворот закончен */
