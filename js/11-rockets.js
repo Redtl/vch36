@@ -21,7 +21,14 @@ const VCH_RK={
   range:170, lockTime:.8, reload:26, gap:.12,
   ejectT:.42, ejectV:16,
   thrust:1900, burnT:1.6, dryM:10.2, fuelM:4.6, pitchT:1.0, maxGPitch:26, turnRateV:3.4,
-  kDrag:.0058, pn:3.4, maxG:12, turnRate:3.2, fuze:4.2, life:16, blastR:5.5,
+  kDrag:.0058, pn:3.4, maxG:34, turnRate:3.2, fuze:4.2, life:16, blastR:5.5,
+  /* навесная траектория: после схода с направляющей ракета уходит вверх и
+     выходит на цель сверху. Набор тем сильнее, чем дальше цель; если цель
+     ниже точки пуска — горки нет, иначе ракета пролетает над низиной. */
+  climbT:1.8, climbG:30, climbSpan:120, diveDist:70, launchUp:.9, pnDist:95, pnHerr:.34,
+  ceilingK:.15,          /* потолок горки — доля от дальности до цели */
+  ceilingMax:15,         /* м · жёсткий потолок: выше ракета не успевает спикировать */
+  fadeOut:25,            /* м до предела дальности, где горка уже не нужна */
   held:!1, wasHeld:!1, lock:0, state:"idle", salvo:[], fireT:0,
   pods:[], podsUp:0, elevT:35, elev:0, deployT:.55, stowT:.7, straighten:3.0, turnRateV:5.0, turnRateW:2.6, pitchG:22,
   target:null, tpos:new P(), tvel:new P(), reloadT:0, hint:"", shotsFired:0, lastHit:null
@@ -483,14 +490,14 @@ function vchRocketLaunch(tube){
   if(!(aim.lengthSq()>0))aim.set(0,0,1);
   aim.y=Math.max(aim.y,2);
   aim.normalize();
-  const dir=aim.clone().addScaledVector(new P(0,1,0),.42).normalize();
+  const dir=aim.clone().addScaledVector(new P(0,1,0),RK.launchUp).normalize();
   const mesh=vchRocketMesh();
   mesh.position.copy(pos);
   cn.add(mesh);
   const r={
     mesh,pos:pos.clone(),prev:pos.clone(),
     vel:dir.clone().multiplyScalar(RK.ejectV),
-    dir:dir.clone(),quat:new gn(),age:0,fuel:1,alive:!0,
+    dir:dir.clone(),quat:new gn(),age:0,fuel:1,alive:!0,launchY:pos.y,
     target:RK.target,mass:RK.dryM+RK.fuelM,smokeAcc:0,hitP:new P(),tube,dist:0,
     tlast:RK.tpos.clone(),tseen:!0
   };
@@ -585,12 +592,26 @@ function vchRocketStep(r,dt){
       /* ПН включаем только на конечном участке и при малой ошибке курса:
          иначе на большом начальном рассогласовании она «заваливает» ракету
          в землю. На маршруте работает чистое выравнивание на линию визирования. */
-      if(sp>55&&dist<95&&herr<0.34){
+      if(sp>55&&dist<RK.pnDist&&herr<RK.pnHerr){
         const vrel=tvel?tvel.clone().sub(r.vel):r.vel.clone().negate();
         const Vc=los.dot(vrel);
         const omega=new P().crossVectors(los,vrel).divideScalar(Math.max(dist,6));
         aPN=new P().crossVectors(omega,los).multiplyScalar(RK.pn*Math.max(Vc,90));
         aCmd.add(aPN);
+      }
+      /* набор высоты: первые climbT секунд горения, пока цель дальше diveDist
+         и не ниже точки пуска, команду добавляет перегрузку вверх. Так
+         траектория становится навесной, а не стелющейся у самой земли. */
+      if(RK.climbT>0&&t0>0&&t0<RK.climbT&&dist>RK.diveDist&&(tpos.y-r.launchY)>-3){
+        /* потолок горки: чем ближе цель, тем ниже апогей, иначе на предельной
+           дальности ракета не успевает выйти на цель и клюёт в землю */
+        /* потолок: и доля от дальности, и жёсткий предел. Выше 15 м ракета
+           уже не успевает выйти на цель — клюёт в землю, не добрав 25 м. */
+        const gh0=ge(r.pos.x,r.pos.z);
+        const ceil=Math.min(RK.ceilingK*dist,RK.ceilingMax);
+        if(r.pos.y-gh0 < ceil)
+          aCmd.addScaledVector(VCH_RK_UP,
+            RK.climbG*9.81*Math.min(1,(dist-RK.diveDist)/RK.climbSpan));
       }
       r.dbg={str:+aStr.y.toFixed(1),pn:aPN?+aPN.y.toFixed(1):null};
       const late=r.age>RK.ejectT+RK.pitchT*1.15;   /* доворот закончен */
