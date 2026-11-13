@@ -115,6 +115,22 @@ function vchRocketPodSplit(host, mod){
   mod.traverse(o => {
     if (o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position) meshes.push(o);
   });
+  /* Внутри Rocket_Module_Low лежит ещё и вентилятор на крыше (impeller axe_Low
+     с мешами impeller_Low и Cylinder017) - к ракетному блоку он не относится.
+     Берём только те меши, у которых ни самому объекту, ни одному из его
+     предков до модуля не попадается "impeller" в имени: иначе вентилятор тоже
+     разрезается плоскостью x=0, обе его половинки уезжают в кассеты и
+     разъезжаются вверх-вниз при крене кассеты - над крышей повисает деталь,
+     которой там быть не должно. В старой модели вентилятор был меньше и его
+     дубликат совпадал с оригиналом, поэтому дефект не был заметен. */
+  for (let i = meshes.length - 1; i >= 0; i--) {
+    let p = meshes[i], off = false;
+    while (p && p !== mod.parent) {
+      if (/impeller/i.test(p.name || "")) { off = true; break; }
+      p = p.parent;
+    }
+    if (off) meshes.splice(i, 1);
+  }
   const rocketTag = o => {
     let p = o;
     while (p && p !== mod.parent) {
