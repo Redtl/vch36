@@ -152,13 +152,26 @@ function vchScFindRe(root,re){let hit=null;root.traverse(o=>{if(!hit&&o.name&&re
    нет работающего clone() — игра клонирует геометрию катков (shrinkRadial) и
    падает. Раскладываем их в обычные BufferAttribute: данных становится даже
    меньше (шаг 8 -> 6), а дальше всё работает как с прежней моделью. */
+/* Квантованные атрибуты модели (int/uint + normalized) раскладываем в обычный
+   Float32. Модель приходит сжатой EXT_meshopt_compression и квантованной, а
+   игра правит геометрию на месте: позиции вершин зубьев (shrinkRadial) и
+   нормали (computeVertexNormals / normalizeNormals). Запись дробного значения
+   в Int16Array округляет его к нулю — нормали обнуляются, танк становится
+   чёрным, а зубья схлопываются. Расквантовка делает модель по структуре
+   такой же, как старая: те же Float32-атрибуты. */
+function vchDequantScale(arr){
+  if(arr.constructor===Int16Array)return 32767;
+  if(arr.constructor===Int8Array)return 127;
+  if(arr.constructor===Uint16Array)return 65535;
+  if(arr.constructor===Uint8Array)return 255;
+  return 0;
+}
 function vchDeinterleave(root){
   let n=0;
   root.traverse(function(o){
     if(!o.isMesh||!o.geometry)return;
     const g=o.geometry,names=[];
     for(const k in g.attributes) if(g.attributes[k]&&g.attributes[k].isInterleavedBufferAttribute) names.push(k);
-    if(!names.length)return;
     for(const k of names){
       const a=g.attributes[k],cnt=a.count,c=a.itemSize,src=a.array,st=a.data.stride,off=a.offset;
       const out=new src.constructor(cnt*c);
@@ -166,6 +179,17 @@ function vchDeinterleave(root){
       const na=new Ve(out,c);
       na.normalized=!!a.normalized;
       g.setAttribute(k,na); n++;
+    }
+    /* Расквантовываем только то, что игра перезаписывает: позиции и нормали.
+       Текстурные координаты остаются квантованными — их никто не меняет. */
+    for(const k of ["position","normal"]){
+      const a=g.attributes[k];
+      if(!a||!a.normalized)continue;
+      const src=a.array, d=vchDequantScale(src);
+      if(!d)continue;
+      const out=new Float32Array(src.length);
+      for(let i=0;i<src.length;i++) out[i]=src[i]/d;
+      g.setAttribute(k,new Ve(out,a.itemSize)); n++;
     }
   });
   return n;
