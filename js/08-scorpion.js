@@ -10,6 +10,11 @@
 function vWarmUp(tag){
   try{
     if(!Jn||!cn||!ye)return;
+    /* Проверка линковки (gl.getProgramParameter + getProgramInfoLog) заставляет
+       драйвер дожидаться компиляции прямо в кадре. Замер профилировщиком: на
+       первой смене танка это 2.6 с из 5 с окна — 46 % времени потока. В боевом
+       режиме ошибки шейдеров не проверяем. */
+    try{ Jn.debug.checkShaderErrors=!1 }catch(e){}
     const t0=performance.now();
     Jn.compile(cn,ye);
     Jn.setRenderTarget(null);
@@ -18,6 +23,44 @@ function vWarmUp(tag){
     window.__vWarm.push({tag,ms:Math.round(performance.now()-t0),programs:Jn.info.programs.length})
   }catch(e){console.warn('warm-up',e)}
 }
+/*
+  Полный прогрев: перебираем танки, компилируем их материалы и рендерим кадр —
+  только так собираются и теневые (depth) варианты программ. Без этого материалы
+  второй машины компилировались в первый же кадр после её активации: 12 новых
+  программ и подвисание на первом нажатии TAB.
+*/
+function vchWarmAll(tag){
+  try{
+    if(!Jn||!cn||!ye)return;
+    try{ Jn.debug.checkShaderErrors=!1 }catch(e){}
+    const t0=performance.now();
+    const save=VCH_TANKS.indexOf(VCH_ACTIVE);
+    /*
+      Фары (2 прожектора + 2 точки на машину) создаются в vEnsureTankLights()
+      только для активного танка — то есть в первый же кадр после нажатия TAB.
+      Число источников света вшито в ключ шейдерной программы, поэтому все
+      материалы сцены перекомпилировались прямо во время смены танка: 13 новых
+      программ и подвисание на секунды. Создаём фары всем машинам заранее.
+    */
+    if(typeof J!=="undefined"&&!J.started){
+      for(let i=0;i<VCH_TANKS.length;i++){
+        if(i!==save)setActiveTank(i);
+        try{ if(typeof vEnsureTankLights==="function")vEnsureTankLights() }catch(e){}
+      }
+      if(save>=0)setActiveTank(save);
+    }
+    const n0=Jn.info.programs.length;
+    Jn.compile(cn,ye);
+    /* кадр нужен, чтобы собрались теневые (depth) варианты программ —
+       compile() их не трогает. Если новых программ нет, кадр не рисуем:
+       на слабом GPU он сам по себе стоит несколько миллисекунд. */
+    if(Jn.info.programs.length>n0){ Jn.setRenderTarget(null); Jn.render(cn,ye) }
+    window.__vWarm=window.__vWarm||[];
+    window.__vWarm.push({tag:"warm-all:"+(tag||""),ms:Math.round(performance.now()-t0),
+                         programs:Jn.info.programs.length})
+  }catch(e){console.warn("warm-all",e)}
+}
+window.__vchWarmAll=vchWarmAll;
 const pa=new Ef;let qo=0;const Xo=1/60;let Yo=0,Pc=0;function np(){requestAnimationFrame(np);
   /* 4.2: defer-скрипты исполняются отдельными задачами, поэтому rAF может
      сработать между модулями. Кадр стартует только после того, как весь код
@@ -769,9 +812,13 @@ function mountScorpion(src){
     });
     return {smoothDeg:C.smoothDeg,meshes};
   }
-  function scWindPass(){
-    const a=scFixWinding(modelRoot),b=scFixWinding(group);
-    return a.flipped+b.flipped;
+  function scWindPass(force){
+    const t0=performance.now();
+    const a=scFixWinding(modelRoot,force),b=scFixWinding(group,force);
+    const st=window.__vchWindStat||(window.__vchWindStat={passes:0,fresh:0,flipped:0,ms:0});
+    st.passes++,st.fresh+=a.fresh+b.fresh,st.flipped+=a.flipped+b.flipped,
+    st.ms=Math.round(st.ms+performance.now()-t0);
+    return {flipped:a.flipped+b.flipped,fresh:a.fresh+b.fresh,meshes:a.meshes+b.meshes};
   }
   /* ===== Вывернутые грани ==================================================
      В модели часть треугольников завёрнута не той стороной: порядок вершин
@@ -782,26 +829,37 @@ function mountScorpion(src){
      Лечим по вершинным нормалям: они в модели верные, поэтому у грани, у
      которой обход с ними спорит, меняем местами два индекса. Позиции, UV и
      нормали не трогаются — меняется только порядок обхода.              */
-  function scFixWinding(root){
-    const seen=new Set();let meshes=0,flipped=0;
+  /*
+    Геометрию проверяем один раз. Повторные проходы раньше переворачивали спорные
+    грани обратно (порог мягкий, у решёток нормали почти перпендикулярны грани) и
+    каждый такой проход пересчитывал нормали всей модели — шесть проходов по
+    0.15–0.3 с в первые 4.5 с, как раз пока висит стартовое меню.
+    Сырые массивы вместо getX/getY/getZ: на 83 тыс. граней это в разы быстрее.
+  */
+  function scFixWinding(root,force){
+    const seen=new Set();let meshes=0,flipped=0,fresh=0;
     root.traverse(o=>{
       if(!o.isMesh||o.isInstancedMesh||!o.geometry)return;
       const g=o.geometry;
       if(!g.index||!g.attributes.position||!g.attributes.normal)return;
+      if(g.__vchWindChk&&!force)return;
+      g.__vchWindChk=1;fresh++;
       const id=g.uuid;if(seen.has(id))return;seen.add(id);
-      const ix=g.index,a=ix.array,p=g.attributes.position,n=g.attributes.normal,
-            tri=Math.floor(ix.count/3);
+      const ix=g.index,a=ix.array,p=g.attributes.position.array,n=g.attributes.normal.array,
+            tri=Math.floor(g.index.count/3);
+      if(!p||!n)return;
       let f=0;
       for(let t=0;t<tri;t++){
-        const i0=3*t,i1=i0+1,i2=i0+2,A=a[i0],B=a[i1],C=a[i2];
-        const ux=p.getX(B)-p.getX(A),uy=p.getY(B)-p.getY(A),uz=p.getZ(B)-p.getZ(A),
-              vx=p.getX(C)-p.getX(A),vy=p.getY(C)-p.getY(A),vz=p.getZ(C)-p.getZ(A);
+        const i0=3*t,i1=i0+1,i2=i0+2,A=3*a[i0],B=3*a[i1],C=3*a[i2];
+        const ax=p[A],ay=p[A+1],az=p[A+2],
+              ux=p[B]-ax,uy=p[B+1]-ay,uz=p[B+2]-az,
+              vx=p[C]-ax,vy=p[C+1]-ay,vz=p[C+2]-az;
         const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,
               L=Math.hypot(nx,ny,nz);
         if(L<1e-10)continue;                        /* вырожденная — не тронута */
-        const mx=n.getX(A)+n.getX(B)+n.getX(C),
-              my=n.getY(A)+n.getY(B)+n.getY(C),
-              mz=n.getZ(A)+n.getZ(B)+n.getZ(C),
+        const mx=n[A]+n[B]+n[C],
+              my=n[A+1]+n[B+1]+n[C+1],
+              mz=n[A+2]+n[B+2]+n[C+2],
               ML=Math.hypot(mx,my,mz);
         if(ML<1e-9)continue;
         /* Порог мягкий (-0.05): на тонких рёбрах решёток вершинные нормали
@@ -814,7 +872,7 @@ function mountScorpion(src){
       }
       if(f){ix.needsUpdate=!0;meshes++;flipped+=f}
     });
-    return {meshes,flipped};
+    return {meshes,flipped,fresh};
   }
   /* ===== Bevel: скругление рёбер по всей модели ==========================
      Фаску по-настоящему (вставкой граней) на импортированной GLB в рантайме
@@ -973,11 +1031,15 @@ function mountScorpion(src){
      пересчитывает нормали заново, иначе bevel считал бы нормали граней по
      старому, вывернутому обходу. */
   scWindPass();
-  { const steps=[80,300,900,2200,4500];let i=0;
+  { const steps=[120,400,1200,2600,5000];let i=0,idle=0;
     const tick=()=>{
-      const fx=scWindPass();
-      if(fx&&C.bevelDeg>0)scApplyBevel(C.bevelDeg);   /* нормали считаются по обходу */
-      if(i<steps.length)setTimeout(tick,steps[i++]);
+      const rw=scWindPass();
+      if(rw.flipped&&C.bevelDeg>0)scApplyBevel(C.bevelDeg); /* нормали считаются по обходу */
+      /* новых геометрий нет — модель собрана, правка больше не нужна:
+         выходим и прогреваем шейдеры уже на собранной машине */
+      idle=rw.fresh?0:idle+1;
+      if(idle<2&&i<steps.length)setTimeout(tick,steps[i++]);
+      else vchWarmAll("assembled");
     };
     setTimeout(tick,steps[i++]);
   }
@@ -1174,7 +1236,7 @@ function mountScorpion(src){
   window.__vchScBevel=d=>scApplyBevel(d);
   /* Повторно выправить обход граней (на случай, если модель пересобрана):
      __vchScWind() -> {meshes, flipped}. */
-  window.__vchScWind=()=>{const f=scWindPass();
+  window.__vchScWind=()=>{const f=scWindPass(!0).flipped;
     if(f&&C.bevelDeg>0)scApplyBevel(C.bevelDeg);
     if(f&&C.smoothDeg>0)scApplySmooth(C.smoothDeg);
     return {flipped:f};};

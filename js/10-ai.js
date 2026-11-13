@@ -168,6 +168,18 @@ async function vchInitScorpion(){
     window.__scorpion={tank:tk,rig,info:rig.info};
     vWarmUp("scorpion");
     try{vchRocketInit(rig)}catch(e){console.error("rockets:",e)}
+    /* Модель обрастает узлами ещё пару секунд после монтирования (75 → 182
+       меша), поэтому полный прогрев — позже, пока висит стартовое меню.
+       Прогрев занимает один проход компиляции, поэтому запускаем его в
+       свободное время: пусть лучше подождёт, чем наложится на другой work. */
+    const warmLater=(tag,ms)=>setTimeout(()=>{
+      if(typeof J!=="undefined"&&J.started)return;      /* в бою не мешаем */
+      if(window.requestIdleCallback)window.requestIdleCallback(()=>vchWarmAll(tag),{timeout:6000});
+      else vchWarmAll(tag);
+    },ms);
+    warmLater("scorpion",6000);
+    /* второй проход позже: часть материалов (износ Scorpion) доезжает не сразу */
+    warmLater("late",15000);
   }catch(e){
     console.error("[scorpion]",e);
     const h=document.getElementById("tankhint");
