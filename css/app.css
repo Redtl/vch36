@@ -332,10 +332,10 @@ body.vch-modal #crosshair,body.vch-modal #recoilind,body.vch-modal #aimdot{opaci
 .sw-pink{ background:linear-gradient(135deg,#ec689f,#a32d5e); }
 
 /* Правая панель — карты */
-#g-map-list{ display:flex; flex-direction:column; gap:6px; margin-top:4px; }
+#g-map-list{ display:flex; flex-direction:column; gap:5px; margin-top:4px; }
 .g-mcard{
   display:flex; align-items:center; gap:10px; width:100%; text-align:left;
-  padding:7px 9px; border-radius:4px; cursor:pointer; font:inherit;
+  padding:6px 8px; border-radius:4px; cursor:pointer; font:inherit;
   color:#c8d6e2; background:rgba(15,22,29,.82); border:1px solid rgba(130,175,205,.18);
   transition:border-color .14s, background .14s, transform .12s;
 }
@@ -354,6 +354,7 @@ body.vch-modal #crosshair,body.vch-modal #recoilind,body.vch-modal #aimdot{opaci
 .th-sand{ background:linear-gradient(180deg, #9dd3f2 0%, #f5dbb2 50%, #d4a66a 54%, #9c7242 100%); }
 .th-space{ background:radial-gradient(circle at 75% 25%, #b8d2ff 0 2px, transparent 3px), linear-gradient(180deg, #060b18 0%, #111c36 52%, #293244 55%, #161b26 100%); }
 .th-map01{ background:linear-gradient(180deg, #9db4c8 0%, #d6dee2 48%, #5e6659 52%, #3a4038 100%); }
+.th-nord{ background:radial-gradient(circle at 26% 38%, rgba(255,212,150,.85) 0 4px, transparent 14px), linear-gradient(180deg, #275187 0%, #e7b996 46%, #d9e7f4 50%, #7a9bb8 100%); }
 .g-minfo{ flex:1; min-width:0; }
 .g-minfo b{ display:block; font-size:12px; letter-spacing:1.3px; color:#eef5fa; font-weight:700; }
 .g-minfo small{ display:block; font-size:9.5px; color:#869bad; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

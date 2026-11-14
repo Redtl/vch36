@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
-  <link rel="stylesheet" href="css/app.css?v=10" />
+  <link rel="stylesheet" href="css/app.css?v=11" />
   <!-- vch-files-start
        ПОРЯДОК ДЛЯ СБОРКИ ОДНОГО ФАЙЛА (tools/build-single.py).
        В развёрнутой версии скрипты подключает загрузчик ниже и берёт
@@ -30,6 +30,7 @@ js/06a-aleksandrovsk-data.js
 js/06c-map01-sky-data.js
 js/06b-map01.js
 js/06e-aleksandrovsk.js
+js/06f-nord.js
 js/06d-map01-look.js
 js/07a-audio-pcm.js
 js/07-audio.js
@@ -84,7 +85,7 @@ js/91-fx.js
       .concat([
         "js/01-core.js","js/02-tank.js","js/03-dynamics.js","js/04-visual.js","js/05-cases.js",
         "js/06-world.js","js/06a-aleksandrovsk-data.js","js/06c-map01-sky-data.js","js/06b-map01.js",
-        "js/06e-aleksandrovsk.js","js/06d-map01-look.js","js/07a-audio-pcm.js","js/07-audio.js",
+        "js/06e-aleksandrovsk.js","js/06f-nord.js","js/06d-map01-look.js","js/07a-audio-pcm.js","js/07-audio.js",
         "js/07b-meshopt.js","js/08-scorpion.js","js/09-fleet.js","js/10-ai.js","js/11-rockets.js","js/12-drive.js",
         "js/13-range.js","js/14-track.js","js/15-battle.js","js/16-ui.js","js/17-cam.js",
         "js/18-boot.js","js/19-look.js","js/20-garage.js","js/90-sunrise.js","js/91-fx.js"
@@ -93,7 +94,7 @@ js/91-fx.js
        отрисовано — например данные второй локации, если игрок переключит
        карту в меню без перезагрузки страницы. Список пуст: сейчас смена
        карты идёт через location.href, и всё нужное лежит в цепочке. */
-    var V = "10";
+    var V = "11";
     var tail = ["data/scorpion-glb.js"];   /* второй танк: 10.4 МБ, не держим меню */
     window.__vchFiles = files;
     window.__vchLoaded = [];
@@ -325,6 +326,7 @@ js/91-fx.js
           <b id="pm-sensv">1.00</b></div>
         <div class="pm-row"><span>ЛОКАЦИЯ</span>
           <div class="seg" id="pm-map">
+            <button data-map="aleksandrovsk">АЛЕКСАНДРОВСК</button><button data-map="nord">СЕВЕР-3</button>
             <button data-map="polygon">ПОЛИГОН</button><button data-map="sandbox">ПЕСОЧНИЦА</button>
             <button data-map="space">КОСМОС</button>
           </div></div>
@@ -531,6 +533,14 @@ js/91-fx.js
           </span>
           <span class="g-mcheck">✓</span>
         </button>
+        <button type="button" class="g-mcard" data-map="nord">
+          <span class="g-mthumb th-nord"></span>
+          <span class="g-minfo">
+            <b>СЕВЕР-3</b>
+            <small>Арктическая база · 480×480 м</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
       </div>
 
       <div class="g-map-detail">
@@ -550,6 +560,7 @@ js/91-fx.js
           <option value="space">ПЕСОЧНИЦА · КОСМОС</option>
           <option value="map01">КАРТА 01 (map_01.glb)</option>
           <option value="aleksandrovsk">АЛЕКСАНДРОВСК (aleksandrovsk_mm.glb)</option>
+          <option value="nord">СЕВЕР-3 (Арктическая база)</option>
         </select>
       </div>
     </aside>

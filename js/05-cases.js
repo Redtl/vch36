@@ -241,6 +241,7 @@ function vFrame(dt){
      VCH_HUD (TDZ у const), а typeof на TDZ-переменной сам бросает. */
   VCH_trackFX(dt);if(typeof VCH_camFX=="function")VCH_camFX(dt);
   if(typeof vchPropDyn=="function")vchPropDyn(dt);   /* 3.4: катящиеся бочки */
+  if(typeof VCH_NORD_tick=="function")VCH_NORD_tick(dt);
   if(window.__vchUI){window.__vchUI.hud.tick(dt);window.__vchUI.range.tick(dt);window.__vchUI.track.tick(dt);window.__vchUI.ai.tick(dt)}
 }
 function vSceneTune(){

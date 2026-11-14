@@ -12,15 +12,15 @@ let V_post=null,V_aoPass=null,V_gradePass=null,V_sky=null;
 
 /* ---------- shared sky shader (dome + IBL) ---------- */
 function vSkyUniforms(){
- const sp=VCH_MAP===2;
+ const sp=VCH_MAP===2,nd=VCH_MAP===5;
  return{
   uTime:{value:0},
   sunDir:{value:V_SUNDIR.clone()},
-  zenith:{value:new Ft(sp?0x040718:0x3f74b6)},
-  horizon:{value:new Ft(sp?0x0a142c:0xdcd6c6)},
-  ground:{value:new Ft(sp?0x0a1020:0x746a5a)},
-  sunCol:{value:new Ft(sp?0x9db8ff:0xffe3bc)},
-  cloud:{value:sp?0:.46}
+  zenith:{value:new Ft(sp?0x040718:nd?0x1f497d:0x3f74b6)},
+  horizon:{value:new Ft(sp?0x0a142c:nd?0xc9d8e6:0xdcd6c6)},
+  ground:{value:new Ft(sp?0x0a1020:nd?0x506172:0x746a5a)},
+  sunCol:{value:new Ft(sp?0x9db8ff:nd?0xffe0b2:0xffe3bc)},
+  cloud:{value:sp?0:nd?.38:.46}
  }}
 const V_SKY_VS=`varying vec3 vDir;
 void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
