@@ -100,99 +100,11 @@ function VCH_wedge(g,v,p){
  return {shape:new Cr({vertices:V,faces}),offset:C};
 }
 
-function $w(r,t,e){
- const n=[],i=Yw(),s=Kw(),o=new fe({color:4079941,roughness:.8,metalness:.55}),a=Vf(4711);
- const add=(mesh,opt={},wedge=null)=>{
-  const g=new Et({mass:0,type:Et.STATIC,position:new w(mesh.position.x,mesh.position.y,mesh.position.z),material:void 0,angularDamping:.4,linearDamping:.05});
-  g.quaternion.set(mesh.quaternion.x,mesh.quaternion.y,mesh.quaternion.z,mesh.quaternion.w);
-  if(wedge)g.addShape(wedge.shape,new w(wedge.offset.x,wedge.offset.y,wedge.offset.z));
-  else for(const p of VCH_parts(mesh))g.addShape(new ns(new w(p.half.x,p.half.y,p.half.z)),new w(p.off.x,p.off.y,p.off.z),new Fe(p.quat.x,p.quat.y,p.quat.z,p.quat.w));
-  g.collisionFilterGroup=wedge?VCH_RAMP:is,g.collisionFilterMask=7|VCH_RAMP,t.addBody(g);
-  const rec={mesh,body:g,hp:opt.hp??1,destructible:opt.destructible!==!1,kind:opt.kind||"concrete",dynamic:!!opt.mass,alive:!0};
-  return mesh.userData.prop=rec,n.push(rec),rec;
- };
- const put=(mesh,x,z,yaw,opt={},wedge=null)=>{
-  const b=VCH_bounds(mesh);VCH_place(mesh,x,z,b.hx,b.hz,yaw,b.bottom),r.add(mesh);
-  const rec=add(mesh,opt,wedge);rec.groundY=mesh.position.y;VCH_settle(rec);return rec;
- };
- const l=[];
- for(let u=0;u<26;u++){const f=a()*Math.PI*2,m=16+a()*72;l.push([Math.cos(f)*m,Math.sin(f)*m,a()])}
- for(const [u,f,m] of l){
-  const p=1.6+m*1.4,g=1.1+m*.9,_=1.2+m*1.1,y=new Lt(new _e(p,g,_),i);
-  y.castShadow=!0,y.receiveShadow=!0,put(y,u,f,m*3,{hp:2,kind:"concrete",destructible:!0});
- }
- for(let u=0;u<14;u++){
-  const f=a()*Math.PI*2,m=22+a()*60,v=Math.cos(f)*m,p=Math.sin(f)*m,_=new Jt,
-        x=new Lt(new _e(2.6,.5,.42),i);_.add(x);
-  const y=x.clone();y.rotation.z=.9,y.position.y=.1,_.add(y),_.traverse(R=>{R.castShadow=!0,R.receiveShadow=!0});
-  put(_,v,p,a()*3,{hp:1.6,kind:"concrete"});
- }
- for(let u=0;u<12;u++){
-  const f=a()*Math.PI*2,m=20+a()*55,v=Math.cos(f)*m,p=Math.sin(f)*m,
-        _=new Lt(new mn(.34,.34,.95,12),s);
-  _.castShadow=!0,_.receiveShadow=!0,put(_,v,p,a()*3,{hp:2.4,kind:"barrel",destructible:!0,mass:90});
- }
- for(let u=0;u<9;u++){
-  const f=a()*Math.PI*2,m=24+a()*62,v=Math.cos(f)*m,p=Math.sin(f)*m,_=new Jt,
-        x=new Lt(new _e(1.9,.75,4.3),s);x.position.y=.62,_.add(x);
-  const y=new Lt(new _e(1.7,.62,1.9),o);y.position.set(0,1.28,-.15),_.add(y);
-  for(const [R,A] of [[-.9,1.4],[.9,1.4],[-.9,-1.4],[.9,-1.4]]){
-   const T=new Lt(new mn(.36,.36,.26,10),o);T.rotation.z=Math.PI/2,T.position.set(R,.36,A),_.add(T);
-  }
-  _.traverse(R=>{R.castShadow=!0,R.receiveShadow=!0}),put(_,v,p,a()*6.28,{hp:2.2,kind:"car",destructible:!0});
- }
- const ramp=(u,f,m,v,p,g)=>{
-  const y=[{at:-g/2,pts:[[0,-v/2],[p,v/2],[0,v/2]]},{at:g/2,pts:[[0,-v/2],[p,v/2],[0,v/2]]}],
-        R=zf("x",y,{capStart:!0,capEnd:!0});R.computeVertexNormals();
-  const A=new Lt(R,i);A.castShadow=!0,A.receiveShadow=!0;
-  put(A,u,f,m,{hp:999,destructible:!1,kind:"ramp"},VCH_wedge(g,v,p));
- };
- ramp(0,16,0,9,1.1,6),ramp(-9,22,.35,10,1.9,6),ramp(10,24,-.3,11,2.8,6.5);
- for(let u=0;u<6;u++){
-  const f=-19+u*2.2,m=9.8,p=1+u%2*.5,g=new _e(1.9,p,1.1),_=new Lt(g,i);
-  _.castShadow=!0,_.receiveShadow=!0,put(_,f,m,0,{hp:2,kind:"concrete",destructible:!0});
- }
- for(let u=0;u<4;u++){
-  const f=8+u*2.2,m=13-u*.6,p=new Jt;
-  for(const g of [0,1.05,2.1]){const _=new Lt(new _e(2.4,.34,.34),o);_.rotation.z=g,p.add(_)}
-  p.traverse(g=>{g.castShadow=!0,g.receiveShadow=!0}),put(p,f,m,u*.5,{hp:1.4,kind:"concrete"});
- }
- const d=jw();
- for(let u=0;u<7;u++){
-  const f=-3.2+u%3*1.35,m=6.2+Math.floor(u/3)*1.3,p=.62+u%3*.12,
-        g=new Lt(new _e(p,p,p),d);
-  g.castShadow=!0,g.receiveShadow=!0,put(g,f,m,u*.4,{hp:.45,kind:"crate",destructible:!0,mass:22});
- }
- for(let u=0;u<5;u++){
-  const f=3.4+u%2*.9,m=5.4+Math.floor(u/2)*1.1,
-        p=new Lt(new mn(.34,.34,.95,12),s);
-  p.castShadow=!0,p.receiveShadow=!0,put(p,f,m,u*.7,{hp:2.4,kind:"barrel",destructible:!0,mass:90});
- }
- for(let u=0;u<3;u++){
-  const f=1.1+u*2.1,m=46+u*12,v=Math.cos(f)*m,p=Math.sin(f)*m,_=new Jt,
-        x=new Lt(new _e(3.2,1.1,6.2),s);x.position.y=.85,_.add(x);
-  const y=new Lt(new _e(2.4,.85,3),s);y.position.set(0,1.7,-.2),_.add(y);
-  const R=new Lt(new mn(.13,.13,4.2,10),o);R.rotation.x=Math.PI/2,R.position.set(0,1.9,2.4),_.add(R);
-  for(const A of [-1,1]){const T=new Lt(new _e(.7,1,5.6),o);T.position.set(A*1.6,.5,0),_.add(T)}
-  _.traverse(A=>{A.castShadow=!0,A.receiveShadow=!0}),put(_,v,p,a()*6.28,{hp:6,kind:"tank",destructible:!0});
- }
- for(let u=0;u<40;u++){
-  const f=a()*Math.PI*2,m=14+a()*80,v=Math.cos(f)*m,p=Math.sin(f)*m,
-        _=.8+a()*2.4,x=.4+a()*1.4,y=.8+a()*2.4,grp=new Jt,
-        R=new Lt(new _e(_,x,y),i);
-  R.rotation.set(a()*.6,a()*6.28,a()*.6),grp.add(R),grp.traverse(q=>{q.castShadow=!0,q.receiveShadow=!0});
-  put(grp,v,p,0,{hp:1,kind:"rubble"});
- }
- return n;
-}
 class Zw{constructor(t,e,n){this.scene=t,this.effects=e,this.spots=n,this.timer=0,this.lightCount=0,this.maxLights=4,this.tex=El(64,"rgba(255,220,160,1)"),this.glows=[],this.lights=[];if(this.scene)for(let k=0;k<this.maxLights;k++){const L=new Ql(16742946,0,34,2);L.castShadow=!1,L.position.set(0,-600,0),this.scene.add(L),this.lights.push(L),this.lightCount++}for(const i of n)this.addSpot(i.x,i.z,i.y,i.power,!1)}_takeLight(){for(const L of this.lights)if(!L.userData.vBusy)return L.userData.vBusy=!0,L;for(const g of this.glows)if(g.light){const L=g.light;return g.light=null,L}return null}addSpot(t,e,n,i=22,s=!0){if(!this.scene)return;s&&(t+=(Math.random()-.5)*1.6,e+=(Math.random()-.5)*1.6);const o=this._takeLight();o&&(o.position.set(t,n+2.2,e),o.intensity=i);const a=new cf(new Wl({map:this.tex,color:16747056,transparent:!0,opacity:.5,blending:Ir,depthWrite:!1}));if(a.position.set(t,n+1.3,e),a.scale.setScalar(3.4),this.scene.add(a),this.glows.length>14){const c=this.glows.shift();this.scene.remove(c.sprite),c.sprite.material.dispose(),c.light&&(c.light.intensity=0,c.light.position.set(0,-600,0),c.light.userData.vBusy=!1)}this.glows.push({light:o,sprite:a,s:{x:t,z:e,y:n,power:i}})}update(t,e){this.timer+=t;for(const n of this.glows){const i=.72+.28*Math.sin(e*9+n.s.x)*Math.sin(e*5.3+n.s.z);n.light&&(n.light.intensity=(n.s.power||30)*i),n.sprite.material.opacity=.35+.25*i,n.sprite.position.y=n.s.y+1.2+Math.sin(e*3+n.s.z)*.12}if(this.timer>.035){this.timer=0;for(const n of this.glows){for(let i=0;i<2;i++)this.effects._get(this.effects.sparks).spawn({pos:new P(n.s.x+(Math.random()-.5)*1.6,n.s.y+Math.random()*.8,n.s.z+(Math.random()-.5)*1.6),vel:new P((Math.random()-.5)*1.2,2.2+Math.random()*2,(Math.random()-.5)*1.2),life:.5+Math.random()*.5,size0:1.1,size1:.35,color:Math.random()>.5?16752704:16734736,drag:1.2,grav:-3,opacity:.9});Math.random()>.55&&this.effects._get(this.effects.pool).spawn({pos:new P(n.s.x+(Math.random()-.5)*1.4,n.s.y+1.4,n.s.z+(Math.random()-.5)*1.4),vel:new P((Math.random()-.5)*.8,2.6+Math.random()*1.6,(Math.random()-.5)*.8),life:3.4+Math.random()*2.4,size0:1.6,size1:9+Math.random()*5,color:3025704,drag:.5,grav:-1.2,opacity:.45})}}}}/* =========================================================================
-   SANDBOX / «ПЕСОЧНИЦА» — second selectable location, built strictly after
-   the supplied references: square walled arena, cracked-asphalt yard with
-   white winding markings, raised central slab with four concrete ramp wedges,
-   red brick watch-tower with a timber cabin, billboards, conifers, dirt
-   patches on grass, distant hills, plus the starry "space" variant.
+   SPACE / «КОСМОС» — лунная арена на базе VCH_SB_scene (0.38 G, тёмное
+   звёздное небо и прожекторы).
    ========================================================================= */
-const VCH_MAP_NAMES=["ПОЛИГОН","ПЕСОЧНИЦА","ПЕСОЧНИЦА · КОСМОС","КАРТА 01","АЛЕКСАНДРОВСК","СЕВЕР-3"];
+const VCH_MAP_NAMES=["","","КОСМОС","","АЛЕКСАНДРОВСК","СЕВЕР-3"];
 /*
   Аналитическая высота, отдаваемая лучам катков, намеренно на 4 см ВЫШЕ
   отрисованного асфальта: траки сидят на ~2-3 см ниже аналитической поверхности.
@@ -610,10 +522,10 @@ function VCH_SB_props(r,physics,effects){
 function VCH_MAP_UI(){
  const sel=document.querySelector("#mapselect");
  if(sel){
-  sel.value=VCH_MAP===1?"sandbox":VCH_MAP===2?"space":VCH_MAP===3?"map01":VCH_MAP===4?"aleksandrovsk":VCH_MAP===5?"nord":"polygon";
+  sel.value=VCH_MAP===2?"space":VCH_MAP===5?"nord":"aleksandrovsk";
   sel.addEventListener("change",e=>{
    const v=e.target.value;
-   location.search=v==="polygon"?"":"?map="+v;
+   location.search="?map="+v;
   });
  }
  const name=VCH_MAP_NAMES[VCH_MAP];
@@ -626,14 +538,13 @@ function VCH_MAP_UI(){
 function Jw(r,t){
  const e=new iw({gravity:new w(0,-9.82,0)});
  e.broadphase=new Cs(e),e.solver.iterations=10,e.allowSleep=!0,e.defaultContactMaterial.friction=.5,e.defaultContactMaterial.restitution=.05;
- r.fog=new Gl(VCH_MAP?0xbdcac6:0xc4c4bb,VCH_MAP?.0012:.0019),Gw(r);
+ r.fog=new Gl(0xbdcac6,.0012),Gw(r);
  const n=Ww(r);let i=null,s=null;
  if(VCH_MAP===5){i=VCH_NORD_scene(r,e,n),s=VCH_NORD_group}
- else if(VCH_MAP===3){i=VCH_MAP01_scene(r,e,n),s=null}else if(VCH_MAP===4){i=VCH_ALEKS_scene(r,e,n),s=null}
- else if(VCH_MAP){i=VCH_SB_scene(r,e,n),s=VCH_SB_group}
- else{i=qw(r),({group:s}=Xw(r))}
+ else if(VCH_MAP===4){i=VCH_ALEKS_scene(r,e,n),s=null}
+ else{i=VCH_SB_scene(r,e,n),s=VCH_SB_group}
  return{physics:e,lights:n,terrain:i,buildingGroup:s,heightAt:ge,normalAt:Hw,props:[],fires:null,effects:null}}
-function Qw(r,t,e){if(VCH_MAP===5)return VCH_NORD_props(r,t,e);if(VCH_MAP===3)return VCH_MAP01_props(r,t,e);if(VCH_MAP===4)return VCH_ALEKS_props(r,t,e);if(VCH_MAP)return VCH_SB_props(r,t,e);const n=$w(r,t),i=[{x:-26,z:-30,power:34},{x:33,z:26,power:28},{x:8,z:-58,power:24},{x:-52,z:18,power:30}].map(o=>({...o,y:ge(o.x,o.z)})),s=new Zw(r,e,i);return{props:n,fires:s}}class dd{constructor(t,e,n){const i=new Wl({map:e,transparent:!0,depthWrite:!1,blending:n});this.sprite=new cf(i),this.sprite.visible=!1,this.sprite.frustumCulled=!1,t.add(this.sprite),this.alive=!1,this.vel=new P,this.life=0,this.maxLife=1,this.size0=1,this.size1=2,this.drag=1,this.grav=0,this.rot=0,this.rotVel=0,this.fade=1}spawn(t){this.alive=!0,this.sprite.visible=!0,this.sprite.position.copy(t.pos),this.vel.copy(t.vel||new P),this.life=0,this.maxLife=t.life||1,this.size0=t.size0??1,this.size1=t.size1??this.size0,this.drag=t.drag??1.5,this.grav=t.grav??0,this.rot=Math.random()*6.283,this.rotVel=(Math.random()-.5)*(t.rotVel??0),this.fade=t.opacity??1,this.sprite.material.color.set(t.color??16777215),this.sprite.material.opacity=this.fade,this.sprite.material.rotation=this.rot,this.sprite.scale.setScalar(this.size0)}update(t){if(!this.alive)return;this.life+=t;const e=this.life/this.maxLife;if(e>=1){this.alive=!1,this.sprite.visible=!1;return}const n=Math.exp(-this.drag*t);this.vel.multiplyScalar(n),this.vel.y-=this.grav*t,this.sprite.position.addScaledVector(this.vel,t);const i=this.size0+(this.size1-this.size0)*e;this.sprite.scale.setScalar(i),this.rot+=this.rotVel*t,this.sprite.material.rotation=this.rot;const s=this.fade*Math.min(1,e*8)*(1-Math.pow(e,1.6));this.sprite.material.opacity=Math.max(0,s)}}/* множитель числа частиц: задаётся ступенью качества (2.2) */
+function Qw(r,t,e){if(VCH_MAP===5)return VCH_NORD_props(r,t,e);if(VCH_MAP===4)return VCH_ALEKS_props(r,t,e);return VCH_SB_props(r,t,e)}class dd{constructor(t,e,n){const i=new Wl({map:e,transparent:!0,depthWrite:!1,blending:n});this.sprite=new cf(i),this.sprite.visible=!1,this.sprite.frustumCulled=!1,t.add(this.sprite),this.alive=!1,this.vel=new P,this.life=0,this.maxLife=1,this.size0=1,this.size1=2,this.drag=1,this.grav=0,this.rot=0,this.rotVel=0,this.fade=1}spawn(t){this.alive=!0,this.sprite.visible=!0,this.sprite.position.copy(t.pos),this.vel.copy(t.vel||new P),this.life=0,this.maxLife=t.life||1,this.size0=t.size0??1,this.size1=t.size1??this.size0,this.drag=t.drag??1.5,this.grav=t.grav??0,this.rot=Math.random()*6.283,this.rotVel=(Math.random()-.5)*(t.rotVel??0),this.fade=t.opacity??1,this.sprite.material.color.set(t.color??16777215),this.sprite.material.opacity=this.fade,this.sprite.material.rotation=this.rot,this.sprite.scale.setScalar(this.size0)}update(t){if(!this.alive)return;this.life+=t;const e=this.life/this.maxLife;if(e>=1){this.alive=!1,this.sprite.visible=!1;return}const n=Math.exp(-this.drag*t);this.vel.multiplyScalar(n),this.vel.y-=this.grav*t,this.sprite.position.addScaledVector(this.vel,t);const i=this.size0+(this.size1-this.size0)*e;this.sprite.scale.setScalar(i),this.rot+=this.rotVel*t,this.sprite.material.rotation=this.rot;const s=this.fade*Math.min(1,e*8)*(1-Math.pow(e,1.6));this.sprite.material.opacity=Math.max(0,s)}}/* множитель числа частиц: задаётся ступенью качества (2.2) */
 /* ---------------------------------------------------------------------------
    2.2  Разрешение текстур под ступень качества (512 → 256 → 128)
    ---------------------------------------------------------------------------

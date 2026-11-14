@@ -411,8 +411,9 @@ for(const y of this.wheels){
 }
 }
 
-function VCH_defaultH(r,t){let e=0;e+=Math.sin(r*.0205+.7)*Math.cos(t*.0173-.4)*1.35,e+=Math.sin(r*.0471-1.1)*Math.sin(t*.0408+2)*.62,e+=Math.sin((r+t)*.0112+.3)*1.05,e+=Math.cos(r*.0089-t*.0094)*.75;const n=[[-34,22,7,4.2],[41,-18,9,3.4],[12,46,8,2.6],[-48,-36,10,3],[58,34,11,2.2],[-14,-52,8,2.4]];for(const[a,c,l,h]of n){const d=Math.hypot(r-a,t-c);d<l*2.2&&(e+=h*Math.exp(-(d*d)/(l*l)))}const i=Math.hypot(r,t),s=Te.smoothstep(i,10,40);e*=.35+.65*s;const o=Te.smoothstep(i,108,165);return e+=o*o*34,e}/* ключ локации: ?map= в адресе, иначе сохранённый в меню выбор */
-const VCH_MAP_KEY=(new URLSearchParams(location.search).get("map")||(()=>{try{return localStorage.getItem("vch36.map")||"aleksandrovsk"}catch(e){return "polygon"}})());
-const VCH_MAP=VCH_MAP_KEY==="sandbox"?1:VCH_MAP_KEY==="space"?2:VCH_MAP_KEY==="map01"?3:VCH_MAP_KEY==="aleksandrovsk"?4:VCH_MAP_KEY==="nord"?5:0;
-function ge(r,t){return VCH_MAP===5?VCH_NORD_h(r,t):VCH_MAP===3?VCH_MAP01_h(r,t):VCH_MAP===4?VCH_ALEKS_h(r,t):VCH_MAP?VCH_sbH(r,t):VCH_defaultH(r,t)}
+/* ключ локации: ?map= в адресе, иначе сохранённый в меню выбор */
+const _VCH_RAW_MAP=(new URLSearchParams(location.search).get("map")||(()=>{try{return localStorage.getItem("vch36.map")||"aleksandrovsk"}catch(e){return "aleksandrovsk"}})()).toLowerCase();
+const VCH_MAP_KEY=(_VCH_RAW_MAP==="space"||_VCH_RAW_MAP==="nord"||_VCH_RAW_MAP==="aleksandrovsk")?_VCH_RAW_MAP:"aleksandrovsk";
+const VCH_MAP=VCH_MAP_KEY==="space"?2:VCH_MAP_KEY==="nord"?5:4;
+function ge(r,t){return VCH_MAP===5?VCH_NORD_h(r,t):VCH_MAP===4?VCH_ALEKS_h(r,t):VCH_sbH(r,t)}
 function Hw(r,t,e=new P){const i=ge(r-.6,t),s=ge(r+.6,t),o=ge(r,t-.6),a=ge(r,t+.6);return e.set(i-s,2*.6,o-a).normalize()}function Gw(r){const t=new Sa(900,48,28),e=new $e({side:Ze,depthWrite:!1,dithering:!0,uniforms:vSkyUniforms(),vertexShader:V_SKY_VS,fragmentShader:V_SKY_FS}),n=new Lt(t,e);return n.frustumCulled=!1,r.add(n),V_sky=n,n}

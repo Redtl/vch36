@@ -12,7 +12,7 @@
    ========================================================================== */
 "use strict";
 
-const CACHE = "vch36-v11";
+const CACHE = "vch36-v12";
 
 self.addEventListener("install", () => { self.skipWaiting(); });
 

@@ -20,26 +20,6 @@
       thumb: "aleks"
     },
     {
-      key: "polygon",
-      name: "ПОЛИГОН",
-      sub: "Дневной учебный центр",
-      tag: "ТАКТИКА / МИШЕНИ",
-      size: "420 × 420 м",
-      grav: "1.00 G",
-      desc: "Классический испытательный полигон с рампами, укреплениями, мишенями и возвышенностями для проверки баллистики и ходовой.",
-      thumb: "poly"
-    },
-    {
-      key: "sandbox",
-      name: "ПЕСОЧНИЦА",
-      sub: "Пустынный каньон",
-      tag: "ДЮНЫ / ДИНАМИКА",
-      size: "420 × 420 м",
-      grav: "1.00 G",
-      desc: "Открытая песчаная арена с барханами, баррикадами и скоростными трамплинами — идеально для манёвренного боя и трассы.",
-      thumb: "sand"
-    },
-    {
       key: "space",
       name: "КОСМОС",
       sub: "Лунная база · Низкая G",
@@ -48,16 +28,6 @@
       grav: "0.38 G",
       desc: "Лунный космодром с пониженной гравитацией: затяжные прыжки с рамп, тёмное звёздное небо и яркие прожекторы.",
       thumb: "space"
-    },
-    {
-      key: "map01",
-      name: "КАРТА 01",
-      sub: "Промышленный сектор",
-      tag: "ЗАСТРОЙКА / ХОЛМЫ",
-      size: "598 × 601 м",
-      grav: "1.00 G",
-      desc: "Крупная рельефная локация с магистралями, складскими корпусами и перепадами рельефа для затяжных танковых дуэлей.",
-      thumb: "map01"
     },
     {
       key: "nord",
@@ -112,7 +82,7 @@
     built: false,
     settledAt: 0,
     selectedTank: 0,
-    selectedMap: (typeof VCH_MAP_KEY === "string" && VCH_MAP_KEY) || "aleksandrovsk",
+    selectedMap: (typeof VCH_MAP_KEY === "string" && MAP_META.some(m => m.key === VCH_MAP_KEY)) ? VCH_MAP_KEY : "aleksandrovsk",
     selectedMode: "free",
     autoSpin: true,
     turretDemo: true,
@@ -1235,6 +1205,7 @@
   }
 
   function syncMapUI() {
+    if (!MAP_META.some(m => m.key === state.selectedMap)) state.selectedMap = "aleksandrovsk";
     const meta = MAP_META.find(m => m.key === state.selectedMap) || MAP_META[0];
     const loadedKey = (typeof VCH_MAP_KEY === "string") ? VCH_MAP_KEY : "aleksandrovsk";
     const needReload = state.selectedMap !== loadedKey;

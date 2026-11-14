@@ -36,8 +36,7 @@
 function vchEnvLevel(){
   if(VCH_MAP===5)return 1.04;
   if(VCH_MAP===4)return 1.0;
-  if(VCH_MAP===3)return (typeof VCH_MAP01_ENVLEVEL==="number")?VCH_MAP01_ENVLEVEL:0.9;
-  return VCH_MAP===2?1.45:(VCH_MAP===1?1.12:1.0);
+  return VCH_MAP===2?1.45:1.0;
 }
 
 let VCH_ENV_RT=null;
