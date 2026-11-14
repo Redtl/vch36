@@ -13,6 +13,7 @@
 let VCH_NORD_group = null;
 const VCH_NORD_recs = [];
 let VCH_NORD_fires = null;
+let _VCH_NORD_physics = null;
 const VCH_NORD_anim = { radar: null, beacon: null, windsock: null, snowT: 0 };
 
 /* ---- 1. Аналитическая высота и рельеф базы «Север-3» ------------------- */
@@ -571,6 +572,214 @@ function VCH_NORD_prop(physics, mesh, x, z, yaw, opt){
   return rec;
 }
 
+
+/* ---- 3.5. Справочные детали (реалистичная арктическая архитектура) ------- */
+function VCH_NORD_radome(cx, cz, gy, radius = 2.6, towerH = 5.6){
+  const M = VCH_NORD_materials();
+  const root = new Jt();
+  root.position.set(cx, gy, cz);
+  const leg = 0.22;
+  const half = radius * 0.92;
+  for(const s of [-1, 1]){
+    VCH_NORD_mesh(new _e(leg, towerH, leg), M.steel, s * half, gy + towerH * 0.5, s * half);
+  }
+  const dome = new Lt(new Sa(radius, 14, 10), M.snowPure);
+  dome.position.set(0, gy + towerH + radius * 0.55, 0);
+  dome.castShadow = true; dome.receiveShadow = true;
+  root.add(dome);
+  VCH_NORD_group.add(root);
+  return root;
+}
+function VCH_NORD_latticeTower(cx, cz, gy, height = 7.0, cell = 1.1){
+  const M = VCH_NORD_materials();
+  const root = new Jt();
+  root.position.set(cx, gy, cz);
+  const leg = 0.14;
+  const h = cell * 0.9;
+  const n = Math.round(height / h);
+  for(let i = 0; i <= n; i++){
+    const y = gy + i * h;
+    for(const s of [-1, 1]){
+      VCH_NORD_mesh(new _e(leg, h, leg), M.steel, s * cell * 0.5, y + h * 0.5, s * cell * 0.5);
+      VCH_NORD_mesh(new _e(leg, h, leg), M.steel, s * cell * 0.5, y + h * 0.5, -s * cell * 0.5);
+    }
+    if(i < n){
+      const y2 = y + h;
+      VCH_NORD_mesh(new mn(leg, leg, cell * 1.05, 6), M.steelBright, cell * 0.5, (y + y2) * 0.5, 0);
+      VCH_NORD_mesh(new mn(leg, leg, cell * 1.05, 6), M.steelBright, -cell * 0.5, (y + y2) * 0.5, 0);
+      VCH_NORD_mesh(new mn(leg, leg, cell * 1.05, 6), M.steelBright, 0, (y + y2) * 0.5, cell * 0.5);
+      VCH_NORD_mesh(new mn(leg, leg, cell * 1.05, 6), M.steelBright, 0, (y + y2) * 0.5, -cell * 0.5);
+    }
+  }
+  VCH_NORD_group.add(root);
+  return root;
+}
+function VCH_NORD_fuelTank(physics, cx, cz, gy, r = 1.35, len = 8.6, yaw = 0){
+  const M = VCH_NORD_materials();
+  const root = new Jt();
+  root.position.set(cx, gy, cz);
+  root.rotation.y = yaw;
+  const body = new Lt(new mn(r, r, len, 20), M.cistern);
+  body.rotation.z = -Math.PI / 2;
+  body.position.set(0, r + 0.18, 0);
+  body.castShadow = true; body.receiveShadow = true;
+  root.add(body);
+  for(const s of [-1, 1]){
+    const sad = new Lt(new _e(len * 0.55, 0.34, 0.62), M.concreteDark);
+    sad.rotation.z = -Math.PI / 2;
+    sad.position.set(s * (len * 0.28), 0.17, 0);
+    sad.castShadow = true; sad.receiveShadow = true;
+    root.add(sad);
+  }
+  const neck = new Lt(new mn(0.34, 0.34, 0.72, 10), M.steel);
+  neck.rotation.z = -Math.PI / 2;
+  neck.position.set(len * 0.34, r + 0.18 + r + 0.02, 0);
+  neck.castShadow = true;
+  root.add(neck);
+  const hatch = new Lt(new _e(0.72, 0.05, 0.72), M.warnYellow);
+  hatch.rotation.z = -Math.PI / 2;
+  hatch.position.set(len * 0.34, r + 0.18 + r + 0.38, 0);
+  root.add(hatch);
+  const roof = new Lt(new _e(1.1, 0.12, 1.1), M.steelBright);
+  roof.rotation.z = -Math.PI / 2;
+  roof.position.set(len * 0.34, r + 0.18 + r + 0.62, 0);
+  roof.castShadow = true;
+  root.add(roof);
+  VCH_NORD_group.add(root);
+  const ph = new Et({ mass: 0, type: Et.STATIC, position: new w(cx, gy + r + 0.18, cz) });
+  ph.quaternion.setFromEuler(0, yaw, 0);
+  ph.addShape(new ns(new w(len * 0.55, r + 0.5, r * 1.05)));
+  ph.collisionFilterGroup = is;
+  ph.collisionFilterMask = 7 | VCH_RAMP;
+  physics.addBody(ph);
+  const rec = { mesh: root, body: ph, hp: 9, destructible: true, kind: "tank", dynamic: false, alive: true };
+  root.userData.prop = rec;
+  VCH_NORD_recs.push(rec);
+  return root;
+}
+function VCH_NORD_bund(physics, cx, cz, gy, w = 6.6, d = 6.6, h = 0.9){
+  const M = VCH_NORD_materials();
+  const recs = [];
+  const segs = [
+    [-w * 0.5, 0, w + 0.14, d * 0.5], [w * 0.5, 0, w + 0.14, d * 0.5],
+    [0, -d * 0.5, w * 0.5, d + 0.14], [0, d * 0.5, w * 0.5, d + 0.14]
+  ];
+  for(const [lx, lz, sw, sd] of segs){
+    const rec = VCH_NORD_staticBox(physics, sw, h, sd, M.concreteDark,
+      cx + lx, gy + h * 0.5, cz + lz, 0);
+    recs.push(rec);
+  }
+  return recs;
+}
+function VCH_NORD_pipeRun(physics, points, r = 0.16){
+  const M = VCH_NORD_materials();
+  const recs = [];
+  for(let i = 0; i < points.length - 1; i++){
+    const [x0, z0] = points[i], [x1, z1] = points[i + 1];
+    const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz) || 0.1;
+    const yaw = Math.atan2(dx, dz);
+    const mx = (x0 + x1) * 0.5, mz = (z0 + z1) * 0.5;
+    const my = ge(mx, mz);
+    const pipe = new Lt(new mn(r, r, len, 8), M.steelBright);
+    pipe.position.set(mx, my + r, mz);
+    pipe.rotation.y = yaw;
+    pipe.castShadow = true; pipe.receiveShadow = true;
+    VCH_NORD_group.add(pipe);
+    const body = new Et({ mass: 0, type: Et.STATIC, position: new w(mx, my + r, mz) });
+    body.quaternion.setFromEuler(0, yaw, 0);
+    body.addShape(new ns(new w(len * 0.5, r, r)));
+    body.collisionFilterGroup = is;
+    body.collisionFilterMask = 7 | VCH_RAMP;
+    physics.addBody(body);
+    recs.push({ mesh: pipe, body, hp: 999, destructible: false, kind: "pipe", dynamic: false, alive: true });
+  }
+  return recs;
+}
+function VCH_NORD_snowdrift(physics, x, z, r = 2.2, h = 0.55){
+  const M = VCH_NORD_materials();
+  const gy = ge(x, z);
+  const drift = new Lt(new Sa(r, 8, 6), M.snowPure);
+  drift.position.set(x, gy + h * 0.45, z);
+  drift.scale.set(1, h / r, 1);
+  drift.castShadow = true; drift.receiveShadow = true;
+  VCH_NORD_group.add(drift);
+  const body = new Et({ mass: 0, type: Et.STATIC, position: new w(x, gy + h * 0.45, z) });
+  body.addShape(new ns(new w(r, h * 0.45, r)));
+  body.collisionFilterGroup = is;
+  body.collisionFilterMask = 7 | VCH_RAMP;
+  physics.addBody(body);
+  const rec = { mesh: drift, body, hp: 999, destructible: false, kind: "snowdrift", dynamic: false, alive: true };
+  drift.userData.prop = rec;
+  VCH_NORD_recs.push(rec);
+  return rec;
+}
+function VCH_NORD_pillbox(physics, cx, cz, gy, yaw = 0, r = 3.4){
+  const M = VCH_NORD_materials();
+  const root = new Jt();
+  root.position.set(cx, gy, cz);
+  root.rotation.y = yaw;
+  const wall = new Lt(new _e(r * 2, 2.6, r * 2), M.concrete);
+  wall.position.y = 1.3;
+  wall.castShadow = true; wall.receiveShadow = true;
+  root.add(wall);
+  const roof = new Lt(new _e(r * 2 + 0.5, 0.3, r * 2 + 0.5), M.concreteDark);
+  roof.position.y = 2.8;
+  roof.castShadow = true;
+  root.add(roof);
+  for(const s of [-1, 1]){
+    const embr = new Lt(new _e(0.5, 0.5, 0.5), M.steel);
+    embr.position.set(s * (r - 0.28), 1.35, 0);
+    embr.rotation.y = s > 0 ? 0 : Math.PI;
+    embr.castShadow = true;
+    root.add(embr);
+    const embr2 = new Lt(new _e(0.5, 0.5, 0.5), M.steel);
+    embr2.position.set(0, 1.35, s * (r - 0.28));
+    embr2.rotation.y = s > 0 ? Math.PI / 2 : -Math.PI / 2;
+    embr2.castShadow = true;
+    root.add(embr2);
+  }
+  VCH_NORD_group.add(root);
+  const b = new Et({ mass: 0, type: Et.STATIC, position: new w(cx, gy + 1.3, cz) });
+  b.quaternion.setFromEuler(0, yaw, 0);
+  b.addShape(new ns(new w(r, 1.3, r)));
+  b.collisionFilterGroup = is;
+  b.collisionFilterMask = 7 | VCH_RAMP;
+  physics.addBody(b);
+  const rec = { mesh: root, body: b, hp: 12, destructible: true, kind: "pillbox", dynamic: false, alive: true };
+  root.userData.prop = rec;
+  VCH_NORD_recs.push(rec);
+  return rec;
+}
+function VCH_NORD_girder(cx, cz, gy, len = 10, h = 1.6, yaw = 0){
+  const M = VCH_NORD_materials();
+  const root = new Jt();
+  root.position.set(cx, gy, cz);
+  root.rotation.y = yaw;
+  const fb = 0.16;
+  const hs = h * 0.5;
+  for(const s of [-1, 1]){
+    const col = new Lt(new _e(fb, h, fb), M.steel);
+    col.position.set(s * 1.9, hs, 0);
+    col.castShadow = true;
+    root.add(col);
+  }
+  const top = new Lt(new _e(len, fb, fb), M.steel);
+  top.position.set(0, hs, 0);
+  top.castShadow = true;
+  root.add(top);
+  const bot = new Lt(new _e(len, fb, fb), M.steel);
+  bot.position.set(0, -hs, 0);
+  bot.castShadow = true;
+  root.add(bot);
+  const diag = new mn(fb, fb, Math.hypot(len, h) * 1.02, 6);
+  const d1 = new Lt(diag, M.steel); d1.position.set(0, 0, -len * 0.42); d1.rotation.z = Math.atan2(h, len);
+  d1.castShadow = true; root.add(d1);
+  const d2 = new Lt(diag, M.steel); d2.position.set(0, 0, len * 0.42); d2.rotation.z = -Math.atan2(h, len);
+  d2.castShadow = true; root.add(d2);
+  VCH_NORD_group.add(root);
+  return root;
+}
+
 /* ---- 4. Ландшафт, лёд без лесенок и архитектурные комплексы ---------- */
 function VCH_NORD_terrain(scene){
   const M = VCH_NORD_materials();
@@ -720,6 +929,12 @@ function VCH_NORD_hangar(physics, cx, cz){
       VCH_NORD_mesh(new _e(0.45, 4.3, 0.6), M.warnYellow, wx - sx * 1.15, gy + 2.15, cz + sz * (L * 0.5 - 0.35));
     }
   }
+  for(const sz of [-1, 1]){
+    const dz = cz + sz * (L * 0.5 - 0.55);
+    VCH_NORD_staticBox(physics, 1.6, 3.6, 1.1, M.concreteDark, cx - (W * 0.5 - 1.3), gy + 1.78, dz);
+    VCH_NORD_staticBox(physics, 1.6, 3.6, 1.1, M.concreteDark, cx + (W * 0.5 - 1.3), gy + 1.78, dz);
+    VCH_NORD_mesh(new _e(1.9, 0.14, 1.4), M.warnYellow, cx, gy + 3.45, dz);
+  }
 
   VCH_NORD_staticBox(physics, W + 0.6, 0.9, L + 0.8, M.hangar, cx, gy + H - 0.35, cz);
   VCH_NORD_mesh(new _e(W - 3.6, 0.7, L + 0.4), M.hangar, cx, gy + H + 0.45, cz);
@@ -727,12 +942,37 @@ function VCH_NORD_hangar(physics, cx, cz){
   for(let kz = -6; kz <= 6; kz += 6){
     VCH_NORD_mesh(new mn(0.45, 0.62, 0.9, 10), M.steel, cx, gy + H + 1.35, cz + kz);
   }
+  for(const sz of [-1, 1]){
+    const dz = cz + sz * (L * 0.5 - 1.15);
+    VCH_NORD_staticBox(physics, W - 1.2, 4.6, 0.22, M.hangar, cx, gy + 2.3, dz, 0);
+    VCH_NORD_mesh(new _e(W - 1.4, 0.12, 0.28), M.warnYellow, cx, gy + 4.5, dz);
+  }
+
+  const sTx = cx + (W * 0.5 - 1.05), sTz = cz - (L * 0.5 - 1.05);
+  const sGy = ge(sTx, sTz);
+  VCH_NORD_staticBox(physics, 1.1, 3.4, 1.1, M.concreteDark, sTx, sGy + 1.7, sTz);
+  VCH_NORD_mesh(new _e(1.4, 0.16, 1.4), M.warnYellow, sTx, sGy + 3.48, sTz);
+  const siren = new Lt(new Sa(0.55, 10, 8), M.lampRed);
+  siren.position.set(sTx, sGy + 3.66, sTz);
+  siren.castShadow = true;
+  VCH_NORD_group.add(siren);
+  const sLight = new Ql(0xff4a3a, 14, 16, 1.2);
+  sLight.position.set(sTx, sGy + 3.7, sTz);
+  VCH_NORD_group.add(sLight);
+
+  for(const ox of [-3.6, 0, 3.6]){
+    VCH_NORD_staticBox(physics, 0.6, 5.9, 0.6, M.concreteDark, cx + ox, gy + 2.95, cz);
+  }
+
+  const hLight = new Ql(0xffc982, 26, 30, 1.8);
+  hLight.position.set(cx, gy + 4.9, cz);
+  VCH_NORD_group.add(hLight);
   for(const kz of [-6, 6]){
     VCH_NORD_mesh(new _e(2.4, 0.16, 0.45), M.lampAmber, cx, gy + H - 0.88, cz + kz);
   }
-  const hLight = new Ql(0xffc982, 22, 26, 1.6);
-  hLight.position.set(cx, gy + 4.8, cz);
-  VCH_NORD_group.add(hLight);
+
+  VCH_NORD_snowdrift(physics, cx - (W * 0.5 - 1.4), cz - (L * 0.5 - 1.6));
+  VCH_NORD_snowdrift(physics, cx + (W * 0.5 - 1.4), cz + (L * 0.5 - 1.6));
 
   for(const zOff of [-7, 1, 7]){
     const cr = new Lt(new _e(0.95, 0.95, 0.95), M.wood);
@@ -744,27 +984,39 @@ function VCH_NORD_hangar(physics, cx, cz){
     br.castShadow = true; br.receiveShadow = true;
     VCH_NORD_prop(physics, br, cx + 4.3, cz + zOff, 0.4, { hp: 2.0, kind: "barrel", mass: 85 });
   }
+  const wb = new Lt(new _e(1.6, 0.9, 0.5), M.wood);
+  wb.position.set(cx - 5.4, gy + 0.48, cz + 2);
+  wb.castShadow = true; wb.receiveShadow = true;
+  VCH_NORD_prop(physics, wb, cx - 5.4, cz + 2, 0.1, { hp: 0.5, kind: "crate", mass: 18 });
 }
 
 function VCH_NORD_tower(physics, x, z){
   const M = VCH_NORD_materials();
   const gy = ge(x, z);
+
   VCH_NORD_staticBox(physics, 8.4, 4.2, 8.4, M.concrete, x, gy + 2.0, z);
   VCH_NORD_staticBox(physics, 3.2, 2.8, 2.4, M.concreteDark, x + 5.1, gy + 1.4, z);
-  VCH_NORD_staticBox(physics, 4.8, 5.4, 4.8, M.concreteDark, x, gy + 6.7, z);
-  VCH_NORD_staticBox(physics, 7.6, 0.45, 7.6, M.steel, x, gy + 9.6, z);
-  for(const sx of [-1, 1]) for(const sz of [-1, 1]){
-    VCH_NORD_mesh(new _e(0.12, 1.05, 0.12), M.steelBright, x + sx * 3.65, gy + 10.3, z + sz * 3.65);
+  for(const sz of [-1, 1]){
+    VCH_NORD_staticBox(physics, 1.0, 3.4, 1.0, M.concreteDark, x + sz * 3.35, gy + 1.9, z);
+    VCH_NORD_mesh(new _e(1.2, 0.14, 1.2), M.warnYellow, x + sz * 3.35, gy + 3.6, z);
   }
-  VCH_NORD_mesh(new _e(7.4, 0.08, 0.08), M.warnYellow, x, gy + 10.8, z + 3.65);
-  VCH_NORD_mesh(new _e(7.4, 0.08, 0.08), M.warnYellow, x, gy + 10.8, z - 3.65);
-  VCH_NORD_mesh(new _e(0.08, 0.08, 7.4), M.warnYellow, x + 3.65, gy + 10.8, z);
-  VCH_NORD_mesh(new _e(0.08, 0.08, 7.4), M.warnYellow, x - 3.65, gy + 10.8, z);
+  VCH_NORD_staticBox(physics, 7.6, 0.45, 7.6, M.steel, x, gy + 9.6, z);
+  VCH_NORD_mesh(new _e(7.4, 0.08, 0.08), M.warnYellow, x, gy + 10.05, z + 3.65);
+  VCH_NORD_mesh(new _e(7.4, 0.08, 0.08), M.warnYellow, x, gy + 10.05, z - 3.65);
+  VCH_NORD_mesh(new _e(0.08, 0.08, 7.4), M.warnYellow, x + 3.65, gy + 10.05, z);
+  VCH_NORD_mesh(new _e(0.08, 0.08, 7.4), M.warnYellow, x - 3.65, gy + 10.05, z);
+  VCH_NORD_staticBox(physics, 5.4, 2.8, 5.4, M.glass, x, gy + 10.5, z);
+  VCH_NORD_staticBox(physics, 6.4, 0.45, 6.4, M.steel, x, gy + 13.1, z);
+  VCH_NORD_mesh(new _e(5.8, 0.22, 5.8), M.snowPure, x, gy + 13.42, z);
 
-  VCH_NORD_staticBox(physics, 5.4, 2.8, 5.4, M.glass, x, gy + 11.2, z);
-  VCH_NORD_staticBox(physics, 6.4, 0.45, 6.4, M.steel, x, gy + 12.8, z);
-  VCH_NORD_mesh(new _e(5.8, 0.22, 5.8), M.snowPure, x, gy + 13.12, z);
-  VCH_NORD_mesh(new mn(0.06, 0.10, 4.8, 8), M.steelBright, x - 1.6, gy + 15.2, z - 1.4);
+  VCH_NORD_latticeTower(x, z, gy + 13.55, 6.4, 1.05);
+  VCH_NORD_radome(x, z, gy + 13.55 + 6.4, 2.5, 0.05);
+
+  for(const [dx, dz] of [[3.6, 3.6], [3.6, -3.6], [-3.6, 3.6], [-3.6, -3.6]]){
+    const dGy = ge(x + dx, z + dz);
+    VCH_NORD_staticBox(physics, 1.6, 1.4, 1.6, M.concreteDark, x + dx, dGy + 0.5, z + dz);
+    VCH_NORD_mesh(new Sa(0.95, 10, 8), M.snowPure, x + dx, dGy + 0.5 + 0.95, z + dz);
+  }
 
   const beacon = new Jt();
   beacon.position.set(x + 1.4, gy + 13.45, z + 1.4);
@@ -774,161 +1026,240 @@ function VCH_NORD_tower(physics, x, z){
   beacon.add(beam);
   VCH_NORD_group.add(beacon);
   VCH_NORD_anim.beacon = beacon;
+
+  VCH_NORD_snowdrift(physics, x - 4.6, z - 4.6);
 }
 
 function VCH_NORD_fuelDepot(physics, cx, cz){
   const M = VCH_NORD_materials();
   const gy = ge(cx, cz);
-  const pad = new Lt(new Di(22, 16, 1, 1), M.apron);
-  pad.rotation.x = -Math.PI / 2;
-  pad.position.set(cx, gy + 0.02, cz);
-  pad.receiveShadow = true;
-  VCH_NORD_group.add(pad);
 
-  for(let i = -1; i <= 1; i++){
-    const tz = cz + i * 4.4;
-    for(const sx of [-2.8, 2.8]){
-      VCH_NORD_staticBox(physics, 0.9, 1.35, 2.6, M.concreteDark, cx + sx, gy + 0.65, tz);
-    }
-    const tank = VCH_NORD_mesh(new mn(1.45, 1.45, 9.2, 18), M.cistern, cx, gy + 2.35, tz, 0, 0, Math.PI / 2);
-    VCH_NORD_mesh(new mn(0.38, 0.42, 0.5, 12), M.steel, cx, gy + 3.9, tz);
-    const body = new Et({ mass: 0, type: Et.STATIC, position: new w(cx, gy + 2.35, tz) });
-    body.addShape(new ns(new w(4.6, 1.4, 1.4)));
-    body.collisionFilterGroup = is;
-    body.collisionFilterMask = 7 | VCH_RAMP;
-    physics.addBody(body);
-    const rec = { mesh: tank, body, hp: 9, destructible: true, kind: "tank", dynamic: false, alive: true };
-    tank.userData.prop = rec;
-    VCH_NORD_recs.push(rec);
+  VCH_NORD_staticBox(physics, 30, 1.0, 30, M.apron, cx, gy + 0.02, cz);
+  const pads = [[-8, -8], [8, -8], [-8, 8], [8, 8]];
+  const tankRecs = [];
+  for(const [dx, dz] of pads){
+    const tx = cx + dx, tz = cz + dz;
+    const tgy = ge(tx, tz);
+    tankRecs.push(VCH_NORD_fuelTank(physics, tx, tz, tgy, 1.35, 8.6, Math.PI / 4));
   }
-  VCH_NORD_staticBox(physics, 4.2, 3.0, 3.8, M.hangar, cx - 7.8, gy + 1.48, cz + 4.2);
-  for(let i = 0; i < 5; i++){
+  const bundRecs = [];
+  for(const [dx, dz] of pads){
+    const tx = cx + dx, tz = cz + dz;
+    const tgy = ge(tx, tz);
+    bundRecs.push(VCH_NORD_bund(physics, tx, tz, tgy, 6.6, 6.6, 0.9));
+  }
+  const pipePoints = [
+    [cx - 4, cz - 14], [cx - 4, cz - 6],
+    [cx - 10, cz - 6], [cx - 10, cz],
+    [cx + 4, cz], [cx + 4, cz + 12]
+  ];
+  const pipeRecs = VCH_NORD_pipeRun(physics, pipePoints, 0.16);
+
+  VCH_NORD_staticBox(physics, 5.2, 2.6, 5.2, M.concreteDark, cx - 11, gy + 1.2, cz + 1);
+  VCH_NORD_mesh(new mn(0.22, 2.4, 0.22, 10), M.steel, cx - 11, gy + 1.2 + 1.2, cz + 1);
+  VCH_NORD_mesh(new _e(1.6, 0.14, 1.6), M.warnYellow, cx - 11, gy + 3.68, cz + 1);
+  const pLight = new Ql(0xffd166, 18, 22, 1.4);
+  pLight.position.set(cx - 11, gy + 3.7, cz + 1);
+  VCH_NORD_group.add(pLight);
+
+  for(let bi = 0; bi < 9; bi++){
+    const bx = cx - 10 + (bi % 3) * 1.4, bz = cz - 12 + Math.floor(bi / 3) * 1.4;
+    const bgy = ge(bx, bz);
     const br = new Lt(new mn(0.35, 0.35, 0.98, 12), M.barrel);
+    br.position.set(bx, bgy + 0.49, bz);
     br.castShadow = true; br.receiveShadow = true;
-    VCH_NORD_prop(physics, br, cx - 7.2 + (i % 3) * 1.15, cz - 3.6 - Math.floor(i / 3) * 1.15, i * 0.6,
-      { hp: 2.0, kind: "barrel", mass: 85 });
+    VCH_NORD_group.add(br);
+    VCH_NORD_prop(physics, br, bx, bz, 0, { hp: 2.0, kind: "barrel", mass: 85 });
   }
+
+  VCH_NORD_snowdrift(physics, cx - 14, cz - 14);
+  VCH_NORD_snowdrift(physics, cx + 14, cz + 14);
 }
 
 function VCH_NORD_radarStation(physics, cx, cz){
   const M = VCH_NORD_materials();
   const gy = ge(cx, cz);
-  VCH_NORD_staticBox(physics, 9.5, 3.2, 9.5, M.concrete, cx, gy + 0.6, cz);
-  VCH_NORD_staticBox(physics, 4.0, 4.2, 4.0, M.steel, cx, gy + 4.3, cz);
 
-  const radar = new Jt();
-  radar.position.set(cx, gy + 6.8, cz);
-  const cab = new Lt(new _e(2.2, 1.4, 2.8), M.hangar);
-  cab.castShadow = true;
-  radar.add(cab);
-  const dish = new Lt(new _e(4.8, 2.1, 0.36), M.steelBright);
-  dish.position.set(0, 1.5, -0.5);
-  dish.rotation.x = -0.18;
-  dish.castShadow = true;
-  radar.add(dish);
-  const horn = new Lt(new _e(0.35, 0.35, 1.8), M.warnYellow);
-  horn.position.set(0, 1.5, 0.5);
-  radar.add(horn);
-  VCH_NORD_group.add(radar);
-  VCH_NORD_anim.radar = radar;
+  VCH_NORD_staticBox(physics, 12.5, 3.2, 12.5, M.concrete, cx, gy + 0.55, cz);
+  VCH_NORD_staticBox(physics, 6.2, 4.2, 6.2, M.concreteDark, cx, gy + 3.45, cz);
+  VCH_NORD_mesh(new mn(0.2, 3.2, 0.2, 10), M.steel, cx - 2.7, gy + 3.45 + 1.6, cz - 2.7);
+  VCH_NORD_mesh(new mn(0.2, 3.2, 0.2, 10), M.steel, cx + 2.7, gy + 3.45 + 1.6, cz - 2.7);
+  VCH_NORD_mesh(new mn(0.2, 3.2, 0.2, 10), M.steel, cx - 2.7, gy + 3.45 + 1.6, cz + 2.7);
+  VCH_NORD_mesh(new mn(0.2, 3.2, 0.2, 10), M.steel, cx + 2.7, gy + 3.45 + 1.6, cz + 2.7);
+  VCH_NORD_mesh(new _e(5.8, 0.14, 5.8), M.warnYellow, cx, gy + 7.75, cz);
 
-  const domeBase = VCH_NORD_staticBox(physics, 4.4, 1.6, 4.4, M.concreteDark, cx + 8.5, ge(cx + 8.5, cz - 4) + 0.5, cz - 4);
-  VCH_NORD_mesh(new Sa(2.1, 16, 12), M.snowPure, cx + 8.5, domeBase.mesh.position.y + 1.7, cz - 4);
+  VCH_NORD_latticeTower(cx, cz, gy + 8.0, 7.2, 1.1);
+  VCH_NORD_radome(cx, cz, gy + 8.0 + 7.2, 2.7, 0.05);
+
+  const comm = new Jt();
+  comm.position.set(cx - 3.4, gy + 7.9, cz - 3.4);
+  comm.add(new Lt(new Sa(1.1, 10, 8), M.snowPure));
+  comm.add(new Lt(new mn(0.16, 2.2, 0.16, 10), M.steel));
+  VCH_NORD_group.add(comm);
+  const comm2 = new Jt();
+  comm2.position.set(cx + 3.4, gy + 7.9, cz + 3.4);
+  comm2.add(new Lt(new Sa(0.95, 10, 8), M.snowPure));
+  comm2.add(new Lt(new mn(0.16, 1.9, 0.16, 10), M.steel));
+  VCH_NORD_group.add(comm2);
+
+  for(const [dx, dz] of [[-5.6, -5.6], [5.6, -5.6], [-5.6, 5.6], [5.6, 5.6]]){
+    const dGy = ge(cx + dx, cz + dz);
+    VCH_NORD_staticBox(physics, 1.4, 1.2, 1.4, M.concreteDark, cx + dx, dGy + 0.5, cz + dz);
+    VCH_NORD_mesh(new Sa(0.85, 10, 8), M.snowPure, cx + dx, dGy + 0.5 + 0.85, cz + dz);
+  }
+
+  const rLight = new Ql(0x4aa3ff, 22, 26, 1.5);
+  rLight.position.set(cx, gy + 9.5, cz);
+  VCH_NORD_group.add(rLight);
+
+  VCH_NORD_snowdrift(physics, cx - 7.4, cz - 7.4);
+  VCH_NORD_snowdrift(physics, cx + 7.4, cz + 7.4);
 }
 
 function VCH_NORD_bridge(physics){
   const M = VCH_NORD_materials();
   const bx = 0, bz = -66;
   const deckY = 0.58;
-  const deckL = 22, deckW = 10.6;
+  const L = 24, W = 10;
 
-  VCH_NORD_staticBox(physics, deckW, 0.7, deckL, M.concrete, bx, deckY - 0.35, bz, 0, { ramp: true, kind: "ramp" });
+  VCH_NORD_staticBox(physics, L + 4, 0.5, W + 4, M.apron, bx, deckY - 0.28, bz);
+  VCH_NORD_girder(bx - W * 0.5 - 1.6, bz, deckY + 0.1, L + 3.2, 1.6, 0);
+  VCH_NORD_girder(bx + W * 0.5 + 1.6, bz, deckY + 0.1, L + 3.2, 1.6, 0);
+  VCH_NORD_girder(bx, bz - L * 0.5 - 1.6, deckY + 0.1, W + 3.2, 1.6, Math.PI / 2);
+  VCH_NORD_girder(bx, bz + L * 0.5 + 1.6, deckY + 0.1, W + 3.2, 1.6, Math.PI / 2);
 
-  const road = new Lt(new Di(deckW - 1.4, deckL + 14, 1, 1), M.taxi);
-  road.rotation.x = -Math.PI / 2;
-  road.position.set(bx, deckY + 0.015, bz);
-  road.receiveShadow = true;
-  VCH_NORD_group.add(road);
+  VCH_NORD_staticBox(physics, W + 2, 0.3, L + 2, M.steel, bx, deckY + 0.22, bz);
+  VCH_NORD_mesh(new _e(W, 0.06, L), M.snowPure, bx, deckY + 0.6, bz);
 
-  for(const sx of [-1, 1]){
-    VCH_NORD_staticBox(physics, 0.72, 0.95, deckL, M.concreteDark, bx + sx * (deckW * 0.5 - 0.36), deckY + 0.45, bz);
-    for(let kz = -9; kz <= 9; kz += 6){
-      VCH_NORD_mesh(new _e(0.28, 1.15, 0.28), M.warnYellow, bx + sx * (deckW * 0.5 - 0.36), deckY + 1.25, bz + kz);
-    }
+  for(const [dx, dz] of [[-W * 0.5 - 0.9, -L * 0.5 - 0.9], [W * 0.5 + 0.9, -L * 0.5 - 0.9], [-W * 0.5 - 0.9, L * 0.5 + 0.9], [W * 0.5 + 0.9, L * 0.5 + 0.9]]){
+    const pGy = ge(bx + dx, bz + dz);
+    VCH_NORD_staticBox(physics, 0.7, 2.2, 0.7, M.steel, bx + dx, pGy + 1.1, bz + dz);
+    VCH_NORD_mesh(new _e(0.95, 0.12, 0.95), M.warnYellow, bx + dx, pGy + 2.32, bz + dz);
   }
 
-  for(const oz of [-7.2, 0, 7.2]){
-    VCH_NORD_staticBox(physics, deckW - 0.8, 2.35, 2.4, M.concreteDark, bx, deckY - 1.5, bz + oz);
+  for(const s of [-1, 1]){
+    VCH_NORD_staticBox(physics, 0.14, 0.9, L + 1.4, M.steelBright, bx + s * (W * 0.5 + 0.14), deckY + 0.9, bz);
+    VCH_NORD_mesh(new _e(L + 1.4, 0.08, 0.14), M.steelBright, bx + s * (W * 0.5 + 0.28), deckY + 1.45, bz);
   }
-  VCH_NORD_staticBox(physics, deckW - 1.2, 2.2, deckL - 2, M.concreteDark, bx, deckY - 1.45, bz);
+  for(const s of [-1, 1]){
+    VCH_NORD_staticBox(physics, W + 1.4, 0.9, 0.14, M.steelBright, bx, deckY + 0.9, bz + s * (L * 0.5 + 0.14));
+    VCH_NORD_mesh(new _e(0.14, 0.08, W + 1.4), M.steelBright, bx, deckY + 1.45, bz + s * (L * 0.5 + 0.28));
+  }
 
-  VCH_NORD_wedge(physics, bx, bz + deckL * 0.5 + 4.1, Math.PI, deckW, 8.2, 0.72, -0.12);
-  VCH_NORD_wedge(physics, bx, bz - deckL * 0.5 - 4.1, 0,       deckW, 8.2, 0.72, -0.12);
+  for(const s of [-1, 1]){
+    const ibx = bx + s * (W * 0.5 - 0.5);
+    const ibz = bz - L * 0.5 - 4.2;
+    const ibGy = ge(ibx, ibz);
+    VCH_NORD_staticBox(physics, 1.4, 3.2, 1.4, M.concreteDark, ibx, ibGy + 1.6, ibz);
+    VCH_NORD_mesh(new _e(1.6, 0.14, 1.6), M.warnYellow, ibx, ibGy + 3.34, ibz);
+  }
+
+  VCH_NORD_snowdrift(physics, bx - W * 0.5 - 3.2, bz - L * 0.5 - 3.2);
+  VCH_NORD_snowdrift(physics, bx + W * 0.5 + 3.2, bz + L * 0.5 + 3.2);
 }
 
 function VCH_NORD_overpass(physics){
   const M = VCH_NORD_materials();
-  const cx = -28, cz = -34;
-  const gy = ge(cx, cz);
-  const H = 2.05, W = 7.6, topL = 12;
+  const ox = -28, oz = -34;
+  const deckY = 0.45;
+  const L = 16, W = 8;
 
-  VCH_NORD_staticBox(physics, topL, 0.5, W, M.concrete, cx, gy + H - 0.25, cz, 0, { ramp: true, kind: "ramp" });
-  VCH_NORD_staticBox(physics, topL - 0.4, H - 0.45, W - 0.4, M.concreteDark, cx, gy + (H - 0.45) * 0.5, cz);
-  for(const sz of [-1, 1]){
-    VCH_NORD_staticBox(physics, topL, 0.55, 0.45, M.warnYellow, cx, gy + H + 0.25, cz + sz * (W * 0.5 - 0.22));
+  VCH_NORD_staticBox(physics, L + 3, 0.5, W + 3, M.apron, ox, deckY - 0.28, oz);
+  VCH_NORD_girder(ox - W * 0.5 - 1.4, oz, deckY + 0.1, L + 2.8, 1.4, 0);
+  VCH_NORD_girder(ox + W * 0.5 + 1.4, oz, deckY + 0.1, L + 2.8, 1.4, 0);
+  VCH_NORD_girder(ox, oz - L * 0.5 - 1.4, deckY + 0.1, W + 2.8, 1.4, Math.PI / 2);
+  VCH_NORD_girder(ox, oz + L * 0.5 + 1.4, deckY + 0.1, W + 2.8, 1.4, Math.PI / 2);
+
+  VCH_NORD_staticBox(physics, W + 1.5, 0.25, L + 1.5, M.steel, ox, deckY + 0.2, oz);
+  VCH_NORD_mesh(new _e(W, 0.05, L), M.snowPure, ox, deckY + 0.55, oz);
+
+  for(const s of [-1, 1]){
+    VCH_NORD_staticBox(physics, 0.12, 0.8, L + 1.2, M.steelBright, ox + s * (W * 0.5 + 0.12), deckY + 0.85, oz);
+    VCH_NORD_mesh(new _e(L + 1.2, 0.06, 0.12), M.steelBright, ox + s * (W * 0.5 + 0.26), deckY + 1.35, oz);
   }
-  VCH_NORD_wedge(physics, cx - topL * 0.5 - 5.0, cz,  Math.PI / 2, W, 10.0, H, gy);
-  VCH_NORD_wedge(physics, cx + topL * 0.5 + 5.0, cz, -Math.PI / 2, W, 10.0, H, gy);
+  for(const s of [-1, 1]){
+    VCH_NORD_staticBox(physics, W + 1.2, 0.8, 0.12, M.steelBright, ox, deckY + 0.85, oz + s * (L * 0.5 + 0.12));
+    VCH_NORD_mesh(new _e(0.12, 0.06, W + 1.2), M.steelBright, ox, deckY + 1.35, oz + s * (L * 0.5 + 0.26));
+  }
+
+  // Ramp railings at near side
+  for(const s of [-1, 1]){
+    const rz = oz + L * 0.5 + 1.6;
+    VCH_NORD_staticBox(physics, W + 1.2, 0.5, 0.12, M.steelBright, ox, deckY + 0.8, rz);
+    VCH_NORD_mesh(new _e(0.12, 0.06, W + 1.2), M.steelBright, ox, deckY + 1.15, rz);
+  }
+
+  VCH_NORD_snowdrift(physics, ox - W * 0.5 - 2.6, oz - L * 0.5 - 2.6);
+  VCH_NORD_snowdrift(physics, ox + W * 0.5 + 2.6, oz + L * 0.5 + 2.6);
 }
 
 /* Входные ворота огневого рубежа (z = 77, за мишенями — красиво обрамляют линию старта) */
 function VCH_NORD_rangeArch(physics){
   const M = VCH_NORD_materials();
   const z = 77;
+
   for(const sx of [-1, 1]){
     const px = sx * 16, gy = ge(px, z);
     VCH_NORD_staticBox(physics, 1.4, 6.2, 1.4, M.concreteDark, px, gy + 3.0, z);
     VCH_NORD_mesh(new _e(1.6, 1.1, 1.6), M.warnYellow, px, gy + 1.0, z);
+    VCH_NORD_staticBox(physics, 1.4, 0.5, 1.4, M.steel, px, gy + 6.45, z);
+    VCH_NORD_mesh(new _e(1.8, 0.1, 1.8), M.warnYellow, px, gy + 6.7, z);
   }
+
   const topY = Math.max(ge(-16, z), ge(16, z)) + 6.4;
-  VCH_NORD_mesh(new _e(34, 1.0, 1.1), M.steel, 0, topY, z);
-  VCH_NORD_mesh(new _e(8.4, 1.8, 0.35), M.signRange, 0, topY, z - 0.6);
+  VCH_NORD_staticBox(physics, 34, 0.5, 1.6, M.steel, 0, topY + 0.25, z);
+  VCH_NORD_mesh(new _e(34, 0.08, 0.08), M.warnYellow, 0, topY + 0.72, z);
+  VCH_NORD_mesh(new _e(34, 0.08, 0.08), M.warnYellow, 0, topY - 0.2, z);
+  VCH_NORD_staticBox(physics, 0.5, 6.4, 1.6, M.steel, -17, topY - 3.0, z);
+  VCH_NORD_staticBox(physics, 0.5, 6.4, 1.6, M.steel, 17, topY - 3.0, z);
+
+  for(const kx of [-12, 0, 12]){
+    const lGy = ge(kx, z - 2);
+    VCH_NORD_mesh(new mn(0.14, 0.14, 1.2, 6), M.steel, kx, lGy + 0.6, z - 2);
+  }
+
+  const archLight = new Ql(0xffd166, 20, 24, 1.5);
+  archLight.position.set(0, topY + 1.0, z);
+  VCH_NORD_group.add(archLight);
+
+  VCH_NORD_snowdrift(physics, -18, z - 4);
+  VCH_NORD_snowdrift(physics, 18, z - 4);
 }
 
 function VCH_NORD_bunkers(physics){
   const M = VCH_NORD_materials();
-  const caponiers = [
-    [-46, 62, 0.45],
-    [ 46, 36, -0.55],
-    [ 20, -40, 2.75],
-    [-12, -32, 3.05]
-  ];
-  for(const [cx, cz, yaw] of caponiers){
-    const gy = ge(cx, cz);
-    const cs = Math.cos(yaw), sn = Math.sin(yaw);
-    const putWall = (lx, lz, wx, hy, dz) => {
-      const wxp = cx + lx * cs + lz * sn;
-      const wzp = cz - lx * sn + lz * cs;
-      VCH_NORD_staticBox(physics, wx, hy, dz, M.concreteDark, wxp, gy + hy * 0.5 - 0.05, wzp, yaw);
-    };
-    putWall(0, 3.2, 6.4, 1.55, 1.1);
-    putWall(-2.7, 0.2, 1.1, 1.55, 5.2);
-    putWall( 2.7, 0.2, 1.1, 1.55, 5.2);
+
+  // Caponier / pillbox emplacements along the forward ridge
+  for(const [px, pz, yaw] of [[-40, 30, 0], [40, 30, Math.PI], [-30, -20, Math.PI / 2], [30, -20, -Math.PI / 2]]){
+    const pGy = ge(px, pz);
+    VCH_NORD_pillbox(physics, px, pz, pGy, yaw, 3.4);
+    VCH_NORD_snowdrift(physics, px - 4, pz - 4);
+    VCH_NORD_snowdrift(physics, px + 4, pz + 4);
   }
 
-  const pillboxes = [
-    [-34, 98, 0.15],
-    [ 38, 94, -0.25],
-    [-44, -92, 0.1]
-  ];
-  for(const [px, pz, yaw] of pillboxes){
-    const gy = ge(px, pz);
-    VCH_NORD_staticBox(physics, 6.2, 2.5, 6.2, M.concrete, px, gy + 1.2, pz, yaw);
-    VCH_NORD_mesh(new _e(6.8, 0.45, 6.8), M.concreteDark, px, gy + 2.6, pz, yaw);
-    VCH_NORD_mesh(new _e(6.4, 0.24, 6.4), M.snowPure, px, gy + 2.94, pz, yaw);
-    VCH_NORD_mesh(new _e(2.6, 0.55, 0.4), M.steel, px, gy + 1.75, pz, yaw);
+  // Sandbag revetments at bunker entrances
+  for(const [px, pz] of [[-40, 26], [40, 26], [-26, -24], [26, -24]]){
+    const pGy = ge(px, pz);
+    for(const s of [-1, 1]){
+      VCH_NORD_staticBox(physics, 1.6, 0.5, 0.5, M.concreteDark, px + s * 0.9, pGy + 0.28, pz);
+      VCH_NORD_staticBox(physics, 0.5, 0.5, 1.6, M.concreteDark, px, pGy + 0.28, pz + s * 0.9);
+    }
   }
+
+  // Wedge firing positions (existing, upgraded)
+  for(const [wx, wz, wyaw, ww, wlen, wH] of [
+    [-60, 0, 0, 6, 14, 2.2], [60, 0, Math.PI, 6, 14, 2.2],
+    [0, -55, Math.PI / 2, 6, 14, 2.2], [0, 55, -Math.PI / 2, 6, 14, 2.2]
+  ]){
+    const wGy = ge(wx, wz);
+    VCH_NORD_wedge(physics, wx, wz, wyaw, ww, wlen, wH, wGy);
+    VCH_NORD_mesh(new _e(0.5, 0.5, 0.5), M.warnYellow, wx, wGy + wH + 0.3, wz);
+  }
+
+  VCH_NORD_snowdrift(physics, -50, 10);
+  VCH_NORD_snowdrift(physics, 50, -10);
 }
+
 
 function VCH_NORD_isClear(x, z, pad = 6){
   if(Math.hypot(x, z) < 20 || Math.hypot(x - 12, z) < 16) return false;
@@ -1137,6 +1468,27 @@ function VCH_NORD_tacticalProps(physics){
   }
 }
 
+
+function VCH_NORD_auditPlacements(){
+  if(!_VCH_NORD_physics) return;
+  let issues = 0;
+  VCH_NORD_group.traverse(o => {
+    if(!o.userData.prop) return;
+    const p = o.userData.prop;
+    if(!p.body) return;
+    const pos = p.body.position;
+    const gy = ge(pos.x, pos.z);
+    const below = gy - (pos.y - (p.mesh ? p.mesh.scale.y || 1 : 1) * 0.5);
+    if(below > 0.3){
+      issues++;
+      p.body.position.y = gy + (p.mesh ? p.mesh.scale.y || 1 : 1) * 0.5;
+      p.body.wakeUp();
+    }
+  });
+  if(issues) console.log('[VCH_NORD audit] settled', issues, 'floating/sunk colliders');
+}
+
+
 /* ---- 6. Главная сборка сцены «Север-3» и анимация -------------------- */
 function VCH_NORD_scene(scene, physics, lights){
   VCH_NORD_recs.length = 0;
@@ -1146,6 +1498,7 @@ function VCH_NORD_scene(scene, physics, lights){
 
   VCH_NORD_group = new Jt();
   scene.add(VCH_NORD_group);
+  _VCH_NORD_physics = physics;
 
   const terrain = VCH_NORD_terrain(scene);
   VCH_NORD_airstrip();
@@ -1184,6 +1537,7 @@ function VCH_NORD_scene(scene, physics, lights){
     scene.fog.density = 0.00112;
   }
 
+  VCH_NORD_auditPlacements();
   return terrain;
 }
 
