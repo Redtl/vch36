@@ -364,7 +364,7 @@ function VCH_NIGHT_lights(){
       sh.camera.top = span;  sh.camera.bottom = -span;
       sh.camera.near = Math.max(1, D - span*2 - 60);
       sh.camera.far  = D + span*2 + 60;
-      const ms = Math.max(512, VCH_NIGHT.shadowMap|0);
+      const ms = Math.min(2048, Math.max(512, ((typeof VQ!=="undefined"&&VQ.shadow)?VQ.shadow:VCH_NIGHT.shadowMap)|0));
       if(sh.mapSize.width !== ms){
         sh.mapSize.set(ms,ms);
         if(sh.map){ sh.map.dispose(); sh.map = null }
@@ -565,12 +565,11 @@ const VCH_FOG_BODY = [
   "  float fraw2=dot(fraw,fraw);",
   "  vec3 fdw=(fraw2>1e-8)?fraw*inversesqrt(fraw2):uFogFwd;",
   "  float fk=1.0/max(uFogScaleH,0.1);",
-  "  float fy0=uFogCamPos.y-uFogH0;",
-  "  float fy1=fy0+fdw.y*fdist;",
-  "  float fa0=exp(-max(fy0,0.0)*fk);",
-  "  float fa1=exp(-max(fy1,0.0)*fk);",
-  "  float ftM=abs(fdw.y)<1e-5 ? uFogMist*fa0*fdist : uFogMist*(fa0-fa1)/max(fk*fdw.y,1e-5);",
-  "  ftM=max(ftM,0.0);",
+  "  float fy0=max(uFogCamPos.y-uFogH0,0.0);",
+  "  float fy1=max(uFogCamPos.y+fdw.y*fdist-uFogH0,0.0);",
+  "  float fdu=(fy1-fy0)*fk;",
+  "  float favg=abs(fdu)<1e-3 ? exp(-fy0*fk)*(1.0-0.5*fdu) : (exp(-fy0*fk)-exp(-fy1*fk))/fdu;",
+  "  float ftM=max(uFogMist*fdist*favg,0.0);",
   "  float ftau=exp(-(ftM+uFogBase*fdist));",
   "  float ffsun=clamp(dot(fdw,uFogSun),0.0,1.0);",
   "  vec3 fcol=mix(uFogColSky,uFogColSun,pow(ffsun,uFogSunPow));",

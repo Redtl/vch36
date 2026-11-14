@@ -46,10 +46,10 @@ function VCH_SB_tex(fn,rep){
     pg.fillStyle="#8b8b86";pg.fillRect(0,0,8,8);
     const t=make(ph),id=++VCH_TWid;
     const fallback=()=>{
-      try{const c=Qs(512),g=c.getContext("2d");fn(g,512);t.image=c;t.needsUpdate=!0}catch(e){}
+      try{const c=Qs(512),g=c.getContext("2d");fn(g,512);t.dispose();t.image=c;t.needsUpdate=!0}catch(e){}
     };
     VCH_TWcb.set(id,(bmp,err)=>{
-      if(bmp&&!err){VCH_TWok++;t.image=bmp;t.needsUpdate=!0}
+      if(bmp&&!err){VCH_TWok++;t.dispose();t.image=bmp;t.needsUpdate=!0}
       else{VCH_TWbad++;VCH_TWerr=String(err||"no bitmap").slice(0,200);fallback()}
     });
     try{W.postMessage({id,w:512,h:512,code:fn.toString()})}catch(e){VCH_TWcb.delete(id);fallback()}

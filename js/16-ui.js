@@ -37,13 +37,13 @@ const VCH_PAUSE={
    ========================================================================== */
 const VCH_SETTINGS={
   key:"vch36.settings",
-  q:"auto",            /* "auto" | "0" высокое | "2" среднее | "3" низкое */
+  q:"auto",            /* "auto" | "0" ультра | "1" высокое | "2" среднее | "3" низкое */
   sens:1,              /* множитель чувствительности мыши */
   load(){
     let d={};
     try{d=JSON.parse(localStorage.getItem(this.key)||"{}")||{}}catch(e){d={}}
-    if(d.q===undefined)d.q="auto";
-    this.q=String(d.q);
+    const qStr=d.q===undefined?"auto":String(d.q);
+    this.q=(qStr==="auto"||qStr==="0"||qStr==="1"||qStr==="2"||qStr==="3")?qStr:"auto";
     this.sens=+d.sens>0?+d.sens:1;
     return this;
   },
@@ -58,9 +58,11 @@ const VCH_SETTINGS={
     const sensEl=document.getElementById("pm-sens"),sensV=document.getElementById("pm-sensv");
     if(sensEl)sensEl.value=String(Math.round(this.sens*100));
     if(sensV)sensV.textContent=this.sens.toFixed(2);
-    const seg=document.getElementById("pm-q");
-    if(seg)for(const b of seg.children)b.classList.toggle("on",b.dataset.q===this.q);
-    if(!auto&&typeof vApplyQ==="function")vApplyQ(parseInt(this.q,10)||0);
+    for(const id of["pm-q","g-q-seg"]){
+      const seg=document.getElementById(id);
+      if(seg)for(const b of seg.children)b.classList.toggle("on",b.dataset.q===this.q);
+    }
+    if(typeof vApplyQ==="function")vApplyQ(auto?1:(parseInt(this.q,10)||0));
   },
   setQ(q){this.q=String(q);this.save();this.applyQ()},
   setSens(v){this.sens=Te.clamp(+v||1,.3,2.5);this.save();this.applyQ()},

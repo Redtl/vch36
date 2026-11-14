@@ -117,7 +117,7 @@ function VCH_ALEKS_insert(root){
       if(sh){
         sh.camera.left=-95;sh.camera.right=95;
         sh.camera.top=95;sh.camera.bottom=-95;
-        sh.camera.far=460;sh.mapSize.set(2048,2048);
+        sh.camera.far=460;const sms=Math.min(2048,(typeof VQ!=="undefined"&&VQ.shadow)?VQ.shadow:2048);sh.mapSize.set(sms,sms);
         sh.camera.updateProjectionMatrix();
       }
       /* task 18: интенсивность солнца больше не форсируем — её задаёт
@@ -129,6 +129,17 @@ function VCH_ALEKS_insert(root){
       f.density=.0010;
     }
     root.updateMatrixWorld(!0);
+    /* Выставляем 4x анизотропию текстурам GLB один раз ДО первого кадра, без needsUpdate */
+    try{
+      const wantA=Math.min(4,(typeof Jn!=="undefined"&&Jn.capabilities)?Jn.capabilities.getMaxAnisotropy():4);
+      root.traverse(o=>{
+        const m=o.material;if(!m)return;
+        for(const mm of Array.isArray(m)?m:[m])
+          for(const k of["map","normalMap","roughnessMap","metalnessMap","aoMap","emissiveMap"]){
+            const t=mm[k];if(t&&t.isTexture&&t.anisotropy<wantA)t.anisotropy=wantA;
+          }
+      });
+    }catch(e){}
     VCH_ALEKS.state="ready";
     console.log("aleksandrovsk: готово, мешей "+meshes+", коллайдеров "+VCH_ALEKS.boxes);
   }catch(e){

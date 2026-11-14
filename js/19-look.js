@@ -51,9 +51,14 @@ function vchBuildEnv(){
 
   /* диск солнца: единственный HDR-источник, из-за него на металле появляется
      резкий горячий блик, а на краске — мягкая дорожка */
+  const sunColShader=(VCH_MAP===5)
+    ?"void main(){ gl_FragColor=vec4(13.0,9.8,6.2,1.0); }"
+    :(VCH_MAP===2)
+    ?"void main(){ gl_FragColor=vec4(10.5,12.5,16.5,1.0); }"
+    :"void main(){ gl_FragColor=vec4(14.0,12.6,10.4,1.0); }";
   const sunDot=new Lt(new Sa(.55,16,12),new $e({
     vertexShader:"void main(){ gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
-    fragmentShader:"void main(){ gl_FragColor=vec4(14.0,12.6,10.4,1.0); }"
+    fragmentShader:sunColShader
   }));
   const sd=V_SUNDIR.clone().multiplyScalar(8.4);
   sunDot.position.copy(sd);
@@ -61,10 +66,15 @@ function vchBuildEnv(){
 
   /* «земля» под горизонтом — тёмная плоскость, чтобы низ корпуса не ловил
      отражение неба снизу (иначе броня выглядит «пластиковой») */
+  const floorColShader=(VCH_MAP===5)
+    ?"varying vec3 vP; void main(){ float k=smoothstep(-1.0,-6.5,vP.y); gl_FragColor=vec4(mix(vec3(.04,.05,.07),vec3(.26,.30,.36),k),1.0); }"
+    :(VCH_MAP===2)
+    ?"varying vec3 vP; void main(){ float k=smoothstep(-1.0,-6.5,vP.y); gl_FragColor=vec4(mix(vec3(.02,.022,.03),vec3(.12,.14,.18),k),1.0); }"
+    :"varying vec3 vP; void main(){ float k=smoothstep(-1.0,-6.5,vP.y); gl_FragColor=vec4(mix(vec3(.02,.022,.025),vec3(.28,.24,.19),k),1.0); }";
   const floor=new Lt(new Sa(9.4,24,12),new $e({
     side:Ze,
     vertexShader:"varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }",
-    fragmentShader:"varying vec3 vP; void main(){ float k=smoothstep(-1.0,-6.5,vP.y); gl_FragColor=vec4(mix(vec3(.02,.022,.025),vec3(.28,.24,.19),k),1.0); }"
+    fragmentShader:floorColShader
   }));
   floor.position.y=-6.2;
   sc.add(floor);
@@ -80,30 +90,27 @@ function vchBuildEnv(){
 }
 
 /* ---------- правила «как поверхность отвечает на окружение» ---------------- */
-/* Общий множитель к правилам отражения. HDRI рассвета заметно ярче синтетического
-   окружения дневной сборки, поэтому правила «как есть» (paint 1.05, steel 1.30)
-   выжигали краску и металл в белое. 1.0 — правила без изменений, 0.72 — рабочее
-   значение рассвета. Меняется на ходу ползунком «Блеск брони» (клавиша F). */
-let VCH_REFLECT_GAIN=0.72;
+/* Общий множитель к правилам отражения. */
+let VCH_REFLECT_GAIN=0.68;
 const VCH_REFLECT={
   /* Краска остаётся полуматовой: блеск есть (небо читается на плоскостях),
      но плоские грани не выжигаются в белое. Блестящее — металл и оптика. */
-  paint:      {r:.58,m:.22,e:1.05},
-  paintLight: {r:.55,m:.20,e:1.10},
-  paintDark:  {r:.62,m:.34,e:1.00},
-  sleeve:     {r:.50,m:.30,e:1.10},
-  paintWorn:  {r:.62,m:.26,e:.95},
-  wheelHub:   {r:.55,m:.45,e:1.05},
-  steel:      {r:.30,m:.85,e:1.30},
-  steelDark:  {r:.38,m:.75,e:1.10},
-  track:      {r:.68,m:.50,e:.80},
-  capRed:     {r:.38,m:.40,e:1.15},
+  paint:      {r:.56,m:.24,e:1.06},
+  paintLight: {r:.54,m:.22,e:1.10},
+  paintDark:  {r:.60,m:.36,e:1.02},
+  sleeve:     {r:.48,m:.32,e:1.12},
+  paintWorn:  {r:.60,m:.28,e:.96},
+  wheelHub:   {r:.52,m:.48,e:1.08},
+  steel:      {r:.24,m:.90,e:1.38},
+  steelDark:  {r:.34,m:.78,e:1.14},
+  track:      {r:.64,m:.54,e:.84},
+  capRed:     {r:.34,m:.42,e:1.18},
   rubber:     {r:.90,m:.04,e:.35},
-  optic:      {r:.08,m:1.0,e:1.80},
-  lampAmber:  {r:.30,m:.20,e:1.00},
-  lampRed:    {r:.38,m:.20,e:1.00},
+  optic:      {r:.04,m:1.0,e:2.35},
+  lampAmber:  {r:.26,m:.24,e:1.15},
+  lampRed:    {r:.32,m:.24,e:1.15},
   canvas:     {r:.94,m:.03,e:.45},
-  rust:       {r:.86,m:.30,e:.60},
+  rust:       {r:.84,m:.32,e:.62},
   mud:        {r:1.0,m:.02,e:.30},
   stowage:    {r:.88,m:.08,e:.55},
   stowageDark:{r:.88,m:.10,e:.55}
@@ -136,8 +143,8 @@ function vchReflectScene(){
       if(mm.__vchRefl)continue;
       mm.__vchRefl=1;
       if((mm.envMapIntensity??0)<.9)mm.envMapIntensity=.9;
-      /* ничего не должно превращаться в зеркало: ниже .12 не опускаем */
-      if((mm.roughness??1)<.12)mm.roughness=.12;
+      /* ничего не должно превращаться в абсолютно зеркало: минимум .06 для оптики и льда */
+      if((mm.roughness??1)<.06)mm.roughness=.06;
       mm.needsUpdate=true;
     }
   });
@@ -182,7 +189,7 @@ function vchWearTex(){
 }
 
 /* Общие uniform'ы: один объект на все материалы, обновляется в кадре. */
-let VCH_WEAR_BASE=1;                       /* 0 выкл … 1 норма (пауза → ИЗНОС) */
+let VCH_WEAR_BASE=1,VCH_WEAR_LOCK=!1;       /* 0 выкл … 1 норма (пауза → ИЗНОС) */
 const VCH_WEAR_U={
   uBaseY:{value:0},      /* мировая высота днища танка */
   uGain:{value:1},       /* общая сила износа */
@@ -535,11 +542,31 @@ function vchLookInit(){
     try{
       vchWearScan();
       /* высота днища = высота грунта под машиной: от неё считается грязевой пояс */
-      if(window.__vchGarage&&window.__vchGarage.active){
+      const gOn=!!(window.__vchGarage&&window.__vchGarage.active);
+      if(gOn){
         VCH_WEAR_U.uBaseY.value=window.__vchGarage.turntableY??0.26;
       }else if(Ce&&Ce.body&&Ce.body.position){
         const bp=Ce.body.position;
         VCH_WEAR_U.uBaseY.value=(typeof ge==="function")?ge(bp.x,bp.z):bp.y-1.6;
+      }
+      if(!VCH_WEAR_LOCK){
+        if(gOn){
+          VCH_WEAR_U.uMudCol.value.setHex(0x3a3228);
+          VCH_WEAR_U.uDustCol.value.setHex(0x6e685d);
+          VCH_WEAR_U.uSteelCol.value.setHex(0x7c828a);
+        }else if(VCH_MAP===5){
+          VCH_WEAR_U.uMudCol.value.setHex(0x283038);
+          VCH_WEAR_U.uDustCol.value.setHex(0xbccad8);
+          VCH_WEAR_U.uSteelCol.value.setHex(0x848e98);
+        }else if(VCH_MAP===2){
+          VCH_WEAR_U.uMudCol.value.setHex(0x32363e);
+          VCH_WEAR_U.uDustCol.value.setHex(0x7c828e);
+          VCH_WEAR_U.uSteelCol.value.setHex(0x868c94);
+        }else{
+          VCH_WEAR_U.uMudCol.value.setHex(0x4a3b2b);
+          VCH_WEAR_U.uDustCol.value.setHex(0x8b8069);
+          VCH_WEAR_U.uSteelCol.value.setHex(0x6b6f72);
+        }
       }
       /* сила износа: выбор игрока (пауза → ИЗНОС) × «на песочнице грязнее» */
       VCH_WEAR_U.uGain.value=VCH_WEAR_BASE*(VCH_MAP===1?1.18:1.0);
@@ -571,6 +598,7 @@ window.__vchLook={
   wearGain:(v)=>{ if(v!==undefined){VCH_WEAR_BASE=Math.max(0,Math.min(1,v));VCH_WEAR_U.uGain.value=VCH_WEAR_BASE*(VCH_MAP===1?1.18:1.0);} return VCH_WEAR_BASE},
   /* подстройка цветов износа из консоли/тестов */
   setWear:(o={})=>{
+    if(o.steel!==undefined||o.mud!==undefined||o.dust!==undefined)VCH_WEAR_LOCK=!0;
     if(o.steel!==undefined)VCH_WEAR_U.uSteelCol.value.setHex(o.steel);
     if(o.mud!==undefined)VCH_WEAR_U.uMudCol.value.setHex(o.mud);
     if(o.dust!==undefined)VCH_WEAR_U.uDustCol.value.setHex(o.dust);

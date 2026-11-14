@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
-  <link rel="stylesheet" href="css/app.css?v=13" />
+  <link rel="stylesheet" href="css/app.css?v=14" />
   <!-- vch-files-start
        ПОРЯДОК ДЛЯ СБОРКИ ОДНОГО ФАЙЛА (tools/build-single.py).
        В развёрнутой версии скрипты подключает загрузчик ниже и берёт
@@ -85,7 +85,7 @@ js/91-fx.js
        отрисовано — например данные второй локации, если игрок переключит
        карту в меню без перезагрузки страницы. Список пуст: сейчас смена
        карты идёт через location.href, и всё нужное лежит в цепочке. */
-    var V = "13";
+    var V = "14";
     var tail = ["data/scorpion-glb.js"];   /* второй танк: 10.4 МБ, не держим меню */
     window.__vchFiles = files;
     window.__vchLoaded = [];
@@ -355,7 +355,7 @@ js/91-fx.js
         <div class="pm-row"><span>ВЫСТРЕЛЫ</span><input id="pm-shot" type="range" min="0" max="100" value="100"></div>
         <div class="pm-row"><span>КАЧЕСТВО ГРАФИКИ</span>
           <div class="seg" id="pm-q">
-            <button data-q="0">ВЫСОКОЕ</button><button data-q="2">СРЕДНЕЕ</button>
+            <button data-q="0">УЛЬТРА</button><button data-q="1">ВЫСОКОЕ</button><button data-q="2">СРЕДНЕЕ</button>
             <button data-q="3">НИЗКОЕ</button><button data-q="auto">АВТО</button>
           </div></div>
         <div class="pm-row"><span>ЧУВСТВИТЕЛЬНОСТЬ МЫШИ</span>
@@ -468,7 +468,8 @@ js/91-fx.js
           <span class="g-lbl">ГРАФИКА</span>
           <div class="g-seg small" id="g-q-seg">
             <button type="button" data-q="auto">АВТО</button>
-            <button type="button" data-q="0">ВЫС</button>
+            <button type="button" data-q="0">УЛЬТ</button>
+            <button type="button" data-q="1">ВЫС</button>
             <button type="button" data-q="2">СР</button>
             <button type="button" data-q="3">НИЗ</button>
           </div>

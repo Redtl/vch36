@@ -147,46 +147,77 @@
   }
 
   function makeConcreteTex() {
-    const N = 512, c = mkCanvas(N, N), ctx = c.getContext("2d");
-    ctx.fillStyle = "#1c2228";
+    const N = 1024, c = mkCanvas(N, N), ctx = c.getContext("2d");
+    const rc = mkCanvas(N, N), rctx = rc.getContext("2d");
+    const H = new Float32Array(N * N);
+    ctx.fillStyle = "#181e24";
     ctx.fillRect(0, 0, N, N);
-    /* бетонная крошка и пятна */
+    rctx.fillStyle = "#8a8a8a";
+    rctx.fillRect(0, 0, N, N);
     let seed = 4201;
     const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
-    for (let i = 0; i < 6500; i++) {
-      const x = rnd() * N, y = rnd() * N, r = 0.6 + rnd() * 2.2;
-      const v = 22 + Math.floor(rnd() * 28);
-      ctx.fillStyle = `rgba(${v},${v + 4},${v + 8},0.35)`;
+    for (let i = 0; i < 16000; i++) {
+      const x = rnd() * N, y = rnd() * N, r = 0.7 + rnd() * 2.6;
+      const v = 20 + Math.floor(rnd() * 32);
+      ctx.fillStyle = `rgba(${v},${v + 4},${v + 9},0.34)`;
       ctx.fillRect(x, y, r, r);
+      const rv = 110 + Math.floor(rnd() * 85);
+      rctx.fillStyle = `rgba(${rv},${rv},${rv},0.22)`;
+      rctx.fillRect(x, y, r * 1.4, r * 1.4);
     }
-    for (let i = 0; i < 24; i++) {
-      const x = rnd() * N, y = rnd() * N, rad = 24 + rnd() * 70;
+    /* полированные и масляные разводы: создают живой отблеск ламп и голограммы */
+    for (let i = 0; i < 42; i++) {
+      const x = rnd() * N, y = rnd() * N, rad = 36 + rnd() * 110;
       const gr = ctx.createRadialGradient(x, y, 2, x, y, rad);
-      gr.addColorStop(0, "rgba(8,10,12,0.22)");
-      gr.addColorStop(1, "rgba(8,10,12,0)");
+      gr.addColorStop(0, "rgba(6,9,12,0.28)");
+      gr.addColorStop(1, "rgba(6,9,12,0)");
       ctx.fillStyle = gr;
       ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+      const rg = rctx.createRadialGradient(x, y, 2, x, y, rad);
+      rg.addColorStop(0, i % 2 === 0 ? "rgba(62,62,62,0.52)" : "rgba(215,215,215,0.26)");
+      rg.addColorStop(1, "rgba(130,130,130,0)");
+      rctx.fillStyle = rg;
+      rctx.beginPath(); rctx.arc(x, y, rad, 0, Math.PI * 2); rctx.fill();
     }
     /* швы бетонных плит */
-    ctx.strokeStyle = "rgba(7,10,13,0.72)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(6,8,11,0.78)";
+    ctx.lineWidth = 5;
+    rctx.strokeStyle = "rgba(220,220,220,0.75)";
+    rctx.lineWidth = 5;
     for (let p = 0; p < 4; p++) {
       const k = (p * N) / 4;
       ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k, N); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(N, k); ctx.stroke();
-      ctx.strokeStyle = "rgba(88,104,118,0.10)";
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(k + 2, 0); ctx.lineTo(k + 2, N); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, k + 2); ctx.lineTo(N, k + 2); ctx.stroke();
-      ctx.strokeStyle = "rgba(7,10,13,0.72)";
-      ctx.lineWidth = 3;
+      rctx.beginPath(); rctx.moveTo(k, 0); rctx.lineTo(k, N); rctx.stroke();
+      rctx.beginPath(); rctx.moveTo(0, k); rctx.lineTo(N, k); rctx.stroke();
+      ctx.strokeStyle = "rgba(96,114,130,0.14)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(k + 3, 0); ctx.lineTo(k + 3, N); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, k + 3); ctx.lineTo(N, k + 3); ctx.stroke();
+      ctx.strokeStyle = "rgba(6,8,11,0.78)";
+      ctx.lineWidth = 5;
+    }
+    if (typeof vPeriodicFBM === "function") {
+      const fb = vPeriodicFBM(N, [8, 16, 32, 64, 128], [0.28, 0.24, 0.18, 0.14, 0.10], 7703);
+      for (let y = 0; y < N; y++) {
+        const gy = (y % (N / 4)) < 5 ? -0.35 : 0;
+        for (let x = 0; x < N; x++) {
+          const gx = (x % (N / 4)) < 5 ? -0.35 : 0;
+          H[y * N + x] = fb[y * N + x] * 0.45 + Math.min(gx, gy);
+        }
+      }
     }
     const tex = new Ks(c);
     tex.wrapS = tex.wrapT = vi;
     tex.repeat.set(5, 5);
     tex.colorSpace = Ie;
-    tex.anisotropy = 4;
-    return tex;
+    tex.anisotropy = 16;
+    const rtex = new Ks(rc);
+    rtex.wrapS = rtex.wrapT = vi;
+    rtex.repeat.set(5, 5);
+    rtex.anisotropy = 16;
+    const ntex = (typeof vHeightToNormal === "function") ? vHeightToNormal(H, N, 2.2, 5) : null;
+    return { map: tex, rough: rtex, norm: ntex };
   }
 
   function makeTurntableTex() {
@@ -332,34 +363,40 @@
 
     /* верхние студийные софтбоксы для выразительных бликов на башне и стволе */
     const softMat = new En({ color: 0xffffff });
-    softMat.color.setRGB(3.5, 3.8, 4.2);
+    softMat.color.setRGB(4.2, 4.6, 5.2);
     for (const [x, z] of [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]) {
-      const m = new Lt(new _e(4.2, 0.25, 1.5), softMat);
+      const m = new Lt(new _e(4.8, 0.25, 1.4), softMat);
       m.position.set(x, 8.5, z);
       esc.add(m);
     }
+    const topStripMat = new En({ color: 0xffffff });
+    topStripMat.color.setRGB(3.2, 3.6, 4.4);
+    const centerStrip = new Lt(new _e(1.2, 0.2, 9.5), topStripMat);
+    centerStrip.position.set(0, 9.2, 0);
+    esc.add(centerStrip);
+
     /* тёплый янтарный боковой акцент */
     const warmMat = new En({ color: 0xffffff });
-    warmMat.color.setRGB(3.6, 1.9, 0.7);
-    const wBar = new Lt(new _e(0.3, 2.2, 8.0), warmMat);
+    warmMat.color.setRGB(4.4, 2.2, 0.85);
+    const wBar = new Lt(new _e(0.3, 2.6, 9.0), warmMat);
     wBar.position.set(10.5, 3.0, -2.0);
     esc.add(wBar);
 
     /* холодный стальной контурный акцент слева */
     const coolMat = new En({ color: 0xffffff });
-    coolMat.color.setRGB(1.3, 2.4, 4.0);
-    const cBar = new Lt(new _e(0.3, 2.2, 8.0), coolMat);
+    coolMat.color.setRGB(1.5, 2.9, 4.8);
+    const cBar = new Lt(new _e(0.3, 2.6, 9.0), coolMat);
     cBar.position.set(-10.5, 3.2, 2.0);
     esc.add(cBar);
 
     /* зелёный отсвет от подиума снизу */
     const gBarMat = new En({ color: 0xffffff });
-    gBarMat.color.setRGB(0.4, 1.6, 0.55);
+    gBarMat.color.setRGB(0.45, 1.85, 0.65);
     const gRing = new Lt(new mn(4.5, 4.5, 0.3, 24), gBarMat);
     gRing.position.set(0, -3.8, 0);
     esc.add(gRing);
 
-    const rt = jf.fromScene(esc, 0.025, 0.1, 40);
+    const rt = jf.fromScene(esc, 0.02, 0.1, 40);
     esc.traverse(o => {
       if (o.geometry) o.geometry.dispose();
       if (o.material) o.material.dispose();
@@ -389,7 +426,15 @@
     const tSign = makeExitSignTex();
     const tMon = makeMonitorTex();
 
-    const mFloor = new fe({ map: tConcrete, roughness: 0.78, metalness: 0.16, envMapIntensity: 0.65 });
+    const mFloor = new fe({
+      map: tConcrete.map,
+      roughnessMap: tConcrete.rough,
+      normalMap: tConcrete.norm,
+      normalScale: new ct(0.28, 0.28),
+      roughness: 0.74,
+      metalness: 0.24,
+      envMapIntensity: 1.30
+    });
     const mSteel = new fe({ color: 0x263039, roughness: 0.42, metalness: 0.78, envMapIntensity: 1.0 });
     const mSteelDark = new fe({ color: 0x161b21, roughness: 0.52, metalness: 0.70, envMapIntensity: 0.9 });
     const mWall = new fe({ map: tWall, color: 0xc2ccd6, roughness: 0.66, metalness: 0.45, envMapIntensity: 0.75 });
@@ -589,7 +634,39 @@
       gScene.add(panel);
     }
 
-    /* 7. Атмосферное освещение (без жёсткого геом-конуса) */
+    /* 7. Мягкие объёмные световые лучи под потолочными прожекторами (Fresnel edge fade) */
+    if (typeof $e !== "undefined") {
+      const beamMat = new $e({
+        transparent: true,
+        depthWrite: false,
+        blending: Ir,
+        side: 2,
+        uniforms: { uColor: { value: new Ft(0xd8ecff) }, uAlpha: { value: 0.075 } },
+        vertexShader: `
+          varying vec2 vUv; varying vec3 vN, vV;
+          void main(){
+            vUv=uv;
+            vec4 mv=modelViewMatrix*vec4(position,1.0);
+            vN=normalize(normalMatrix*normal);
+            vV=normalize(-mv.xyz);
+            gl_Position=projectionMatrix*mv;
+          }`,
+        fragmentShader: `
+          uniform vec3 uColor; uniform float uAlpha;
+          varying vec2 vUv; varying vec3 vN, vV;
+          void main(){
+            float fres=pow(abs(dot(normalize(vN),normalize(vV))),2.4);
+            float vert=smoothstep(0.0,0.65,vUv.y)*smoothstep(1.0,0.82,vUv.y);
+            gl_FragColor=vec4(uColor,fres*vert*uAlpha);
+          }`
+      });
+      const beamGeo = new mn(0.65, 3.4, 6.2, 24, 1, true);
+      for (const [bx, bz] of [[-3.1, -2.8], [3.1, -2.8], [-3.1, 2.8], [3.1, 2.8]]) {
+        const cone = new Lt(beamGeo, beamMat);
+        cone.position.set(bx, 3.85, bz);
+        gScene.add(cone);
+      }
+    }
 
     /* 8. Пропсы гаража по периметру (не мешают облёту камеры) */
     const crateSpots = [
@@ -650,19 +727,19 @@
     /* 9. Плавающие пылинки в лучах прожекторов */
     const dustTex = typeof El === "function" ? El(64, "rgba(255,245,220,0.85)") : null;
     if (dustTex && typeof cf !== "undefined" && typeof Wl !== "undefined") {
-      for (let i = 0; i < 28; i++) {
+      for (let i = 0; i < 84; i++) {
         const sp = new cf(new Wl({
           map: dustTex,
           color: i % 3 === 0 ? 0xa8ffba : 0xffe4b8,
           transparent: true,
-          opacity: 0.24,
+          opacity: 0.22,
           blending: Ir,
           depthWrite: false
         }));
-        const r = 1.2 + Math.random() * 6.0, a = Math.random() * Math.PI * 2;
-        const y = 0.6 + Math.random() * 5.2;
+        const r = 0.8 + Math.random() * 6.8, a = Math.random() * Math.PI * 2;
+        const y = 0.4 + Math.random() * 5.8;
         sp.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
-        const sc = 0.07 + Math.random() * 0.09;
+        const sc = 0.055 + Math.random() * 0.085;
         sp.scale.setScalar(sc);
         gScene.add(sp);
         gDust.push({
@@ -671,7 +748,7 @@
           baseY: y,
           baseZ: sp.position.z,
           ph: Math.random() * 6.283,
-          spd: 0.35 + Math.random() * 0.45
+          spd: 0.30 + Math.random() * 0.45
         });
       }
     }
@@ -681,11 +758,12 @@
     gScene.add(hemi);
     gScene.add(new Ay(0x323d4a, 0.40));
 
+    const shSz = (typeof VQ !== "undefined" && VQ.shadow) ? VQ.shadow : 2048;
     gKeyLight = new by(0xfff1dc, 68, 30, 0.86, 0.78, 1.45);
     gKeyLight.position.set(-3.6, 9.0, 4.8);
     gKeyLight.target.position.set(0, 1.0, 0);
     gKeyLight.castShadow = true;
-    gKeyLight.shadow.mapSize.set(2048, 2048);
+    gKeyLight.shadow.mapSize.set(shSz, shSz);
     gKeyLight.shadow.camera.near = 2.0;
     gKeyLight.shadow.camera.far = 22.0;
     gKeyLight.shadow.bias = -0.00025;
@@ -977,6 +1055,10 @@
       }
       if (typeof Pr === "function" && typeof J !== "undefined") {
         Pr(J.cameraMode || 0);
+      }
+      if (gKeyLight && gKeyLight.shadow && gKeyLight.shadow.map) {
+        gKeyLight.shadow.map.dispose();
+        gKeyLight.shadow.map = null;
       }
     }
   }
@@ -1637,6 +1719,12 @@
       } else {
         state.hasCustom = false;
         syncDisplayedTank();
+      }
+    },
+    applyQ: q => {
+      if (gKeyLight && gKeyLight.shadow && q && q.shadow && gKeyLight.shadow.mapSize.x !== q.shadow) {
+        gKeyLight.shadow.mapSize.set(q.shadow, q.shadow);
+        if (gKeyLight.shadow.map) { gKeyLight.shadow.map.dispose(); gKeyLight.shadow.map = null; }
       }
     },
     scene: () => gScene,

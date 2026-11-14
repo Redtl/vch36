@@ -260,7 +260,7 @@ function vSceneTune(){
   небольшая шероховатость и он ровно принимает подсветку неба.
  */
       if(mm.isMeshStandardMaterial){
-        mm.roughness=Math.max(mm.roughness??1,.32);
+        if((mm.roughness??1)>=.30)mm.roughness=Math.max(mm.roughness??1,.32);
         mm.envMapIntensity=Math.max(mm.envMapIntensity??1,.85);
       }
     }

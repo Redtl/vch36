@@ -267,26 +267,28 @@ function VCH_SB_materials(){
  if(VCH_SB_mats)return VCH_SB_mats;
  const ground=VCH_SB_groundTex(),asphalt=VCH_SB_asphaltTex(),conc=VCH_SB_concreteTex(),
        stone=VCH_SB_stoneTex(),brick=VCH_SB_brickTex(),sign=VCH_SB_signTex();
+ const gm=(typeof groundMaps==="function")?groundMaps():null;
+ const cm=(typeof vConcreteMaterial==="function")?vConcreteMaterial():null;
  VCH_SB_mats={
-  grass:new fe({map:ground,vertexColors:!0,roughness:.98,metalness:.0,dithering:!0}),
-  asphalt:new fe({map:asphalt,roughness:.96,metalness:.02,dithering:!0}),
+  grass:new fe({map:ground,normalMap:gm?gm.norm:null,normalScale:new ct(.58,.58),roughnessMap:gm?gm.rough:null,vertexColors:!0,roughness:.96,metalness:.03,dithering:!0}),
+  asphalt:new fe({map:asphalt,normalMap:cm?cm.normalMap:null,normalScale:new ct(.32,.32),roughness:.92,metalness:.06,dithering:!0}),
   yard:null,
-  concrete:new fe({map:conc,color:0x9ea2a0,roughness:.93,metalness:.05}),
-  concreteDark:new fe({map:conc,color:0x6f7476,roughness:.93,metalness:.05}),
-  stone:new fe({map:stone,color:0xd6cdb4,roughness:.95,metalness:.02}),
-  brick:new fe({map:brick,color:0xc06a4c,roughness:.94,metalness:.02}),
+  concrete:new fe({map:conc,normalMap:cm?cm.normalMap:null,normalScale:new ct(.42,.42),color:0x9ea2a0,roughness:.90,metalness:.06}),
+  concreteDark:new fe({map:conc,normalMap:cm?cm.normalMap:null,normalScale:new ct(.42,.42),color:0x6f7476,roughness:.90,metalness:.08}),
+  stone:new fe({map:stone,normalMap:cm?cm.normalMap:null,normalScale:new ct(.48,.48),color:0xd6cdb4,roughness:.94,metalness:.04}),
+  brick:new fe({map:brick,normalMap:cm?cm.normalMap:null,normalScale:new ct(.45,.45),color:0xc06a4c,roughness:.94,metalness:.02}),
   timber:new fe({color:0x5b4a36,roughness:.92,metalness:.04}),
-  metal:new fe({color:0x42484c,roughness:.62,metalness:.55}),
-  white:new fe({color:0xf2ecda,roughness:.92,metalness:.0,emissive:0x302c20,emissiveIntensity:.12}),
+  metal:new fe({color:0x42484c,roughness:.44,metalness:.68}),
+  white:new fe({color:0xf2ecda,roughness:.85,metalness:.02,emissive:0x363226,emissiveIntensity:VCH_MAP===2?.28:.12}),
   pine:new fe({color:0x2f5a36,roughness:.95,metalness:.0}),
   pineLight:new fe({color:0x3c7041,roughness:.95}),
   hill:new fe({color:0x7f8a58,roughness:1,metalness:0,flatShading:!0}),
   hill2:new fe({color:0x96a06a,roughness:1,metalness:0,flatShading:!0}),
-  sign:new fe({map:sign,roughness:.82,metalness:.06,emissive:0x151515,emissiveIntensity:VCH_MAP===2?1.2:.12}),
+  sign:new fe({map:sign,roughness:.76,metalness:.10,emissive:0x1b2028,emissiveIntensity:VCH_MAP===2?1.8:.12}),
  };
  VCH_SB_mats.dirt=new fe({map:VCH_SB_dirtTex(),transparent:!0,depthWrite:!1,roughness:1,metalness:0,
    polygonOffset:!0,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
- VCH_SB_mats.yard=new fe({map:VCH_SB_yardTex(),roughness:.96,metalness:.02,dithering:!0,
+ VCH_SB_mats.yard=new fe({map:VCH_SB_yardTex(),normalMap:cm?cm.normalMap:null,normalScale:new ct(.30,.30),roughness:.92,metalness:.05,dithering:!0,
    alphaTest:.5,polygonOffset:!0,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  return VCH_SB_mats;
 }
@@ -504,11 +506,16 @@ function VCH_SB_scene(r,physics,lights){
  VCH_SB_dirtPatches();VCH_SB_hills();VCH_SB_stars(r);
  // свет / туман по варианту
  if(VCH_MAP===2){
-  lights.sun.intensity=1.25,lights.sun.color.setHex(0xb9ccff);
-  lights.hemi.intensity=.24,lights.hemi.color.setHex(0x3a4a72);
-  lights.fill.intensity=.85,lights.fill.color.setHex(0x86a0ff);
-  lights.bounce.intensity=.16;
-  r.fog.color.setHex(0x0b1222),r.fog.density=.0014;
+  lights.sun.intensity=1.65,lights.sun.color.setHex(0xc8dcff);
+  if(lights.sun.shadow&&lights.sun.shadow.camera){
+   const sh=lights.sun.shadow;
+   sh.camera.left=-46,sh.camera.right=46,sh.camera.top=46,sh.camera.bottom=-46;
+   sh.camera.updateProjectionMatrix();
+  }
+  lights.hemi.intensity=.28,lights.hemi.color.setHex(0x465b8c);
+  lights.fill.intensity=.95,lights.fill.color.setHex(0x88a8ff);
+  lights.bounce.intensity=.20;
+  r.fog.color.setHex(0x0b1222),r.fog.density=.0010;
  }else{
   lights.sun.intensity=3.35,lights.sun.color.setHex(0xffecc9);
   lights.hemi.intensity=1.02,lights.hemi.color.setHex(0xbcd8f0);
@@ -556,28 +563,15 @@ let VCH_TEXORIG=null;
 function VCH_texScale(f){
   try{
     f=+f||1;
+    if(typeof VCH_MAP!=="undefined"&&VCH_MAP===4)return;
     if(!VCH_TEXCACHE||!VCH_TEXCACHE.length)VCH_anisoApply(8);
-    if(!VCH_TEXORIG)VCH_TEXORIG=new Map();
+    /* Переключаем фильтр мипмапов без перевыделения 2D-канвасов и immutable WebGL2-текстур */
+    const mf=f<.5?1007:1008;
     for(const t of VCH_TEXCACHE){
-      const img=t.image;
-      if(!img||t.isCompressedTexture||t.isDataTexture||img.isDataTexture)continue;
-      const w=img.width|0,h=img.height|0;
-      if(!w||!h)continue;
-      if(!VCH_TEXORIG.has(t))VCH_TEXORIG.set(t,img);
-      const src=VCH_TEXORIG.get(t),sw=src.width|0;
-      if(f>=.999){
-        if(t.image!==src){t.dispose();t.image=src;t.needsUpdate=!0}
-        continue;
+      if(!t||t.isCompressedTexture||t.isDataTexture)continue;
+      if(t.minFilter!==mf){
+        t.minFilter=mf;t.needsUpdate=!0;
       }
-      const tw=Math.max(16,Math.round(sw*f)),th=Math.max(16,Math.round((src.height|0)*f));
-      if(t.image&&t.image.__tw===tw&&t.image.__th===th)continue;
-      if(tw>=sw){if(t.image!==src){t.dispose();t.image=src;t.needsUpdate=!0}continue}
-      const c=document.createElement("canvas");c.width=tw;c.height=th;
-      const cx=c.getContext("2d");
-      cx.imageSmoothingEnabled=!0;cx.imageSmoothingQuality="high";
-      try{cx.drawImage(src,0,0,tw,th)}catch(e){continue}
-      c.__tw=tw;c.__th=th;
-      t.dispose();t.image=c;t.needsUpdate=!0;
     }
   }catch(e){}
 }

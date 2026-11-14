@@ -102,7 +102,7 @@
 window.__vchUI={hud:VCH_HUD,range:VCH_RANGE,pause:VCH_PAUSE,vol:VCH_VOL,settings:VCH_SETTINGS,track:VCH_TRACK,ai:VCH_AI,aud:VCH_AUD,audio:an,scene:cn,world:vn,chassis:Ce,rig:()=>qt,props:ba,destroy:(...a)=>ch(...a),crushTick:(...a)=>X1(...a),camFov:()=>ye.fov,tw:()=>({ok:VCH_TWok,bad:VCH_TWbad,err:VCH_TWerr,live:!!VCH_TW}),touch:VCH_TOUCH,fade:VCH_FADE,cam:(m)=>{Pr(m);return ye.fov}};
 
 /* ---- метка сборки: по ней видно, какой код реально запущен ---------------- */
-window.__vchBuild="50 · репозиторий vch36 · модули + рассвет";
+window.__vchBuild="14 · Ultra Graphics · HBAO+ · GodRays · PBR";
 {const el=document.getElementById("pm-build");
  if(el)el.textContent=(window.__vchBuild||"").toUpperCase();}
 try{console.log("%c[vch] сборка "+window.__vchBuild,"color:#ff8a1f;font-weight:bold")}catch(_){}

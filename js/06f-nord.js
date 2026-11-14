@@ -103,7 +103,7 @@ let VCH_NORD_MATS = null;
 function VCH_NORD_tex(canvas, rep, srgb){
   const t = new Ks(canvas);
   t.wrapS = t.wrapT = vi;
-  t.anisotropy = 8;
+  t.anisotropy = 16;
   if(srgb) t.colorSpace = Ie;
   if(rep){
     if(Array.isArray(rep)) t.repeat.set(rep[0], rep[1]);
@@ -213,10 +213,10 @@ function VCH_NORD_materials(){
   for(let y = 0; y < N; y++){
     for(let x = 0; x < N; x++){
       const i = y * N + x;
-      const seam = (x % 128) < 3 || (x % 128) > 125 || (y % 64) < 3 || (y % 64) > 61;
+      const seam = (x % 128) < 2 || (x % 128) > 126 || (y % 64) < 2 || (y % 64) > 62;
       const frost = Math.max(0, pf[i] - 0.14) * 1.1;
-      const base = seam ? 64 : 108 + pf[i] * 28 + frost * 30;
-      pH[i] = seam ? -0.42 : pf[i] * 0.35;
+      const base = seam ? (84 + frost * 22) : (110 + pf[i] * 28 + frost * 30);
+      pH[i] = seam ? -0.24 : pf[i] * 0.35;
       const idx = i << 2;
       pd[idx]     = Math.min(198, Math.max(48, base - 2)) | 0;
       pd[idx + 1] = Math.min(204, Math.max(50, base + 1)) | 0;
@@ -283,37 +283,48 @@ function VCH_NORD_materials(){
   hg.fillRect(166, 236, 180, 40);
   const heliTex = VCH_NORD_tex(hc, 1, true);
 
-  /* 2.7. Потрескавшийся полярный лёд */
+  /* 2.7. Потрескавшийся зеркальный полярный лёд + матовые трещины */
   const ic = Qs(N), ig = ic.getContext("2d");
+  const irc = Qs(N), irg = irc.getContext("2d");
   const ifbm = vPeriodicFBM(N, [4, 8, 16, 32], [0.42, 0.28, 0.18, 0.10], 2137);
   const iceH = new Float32Array(N * N);
   const iimg = ig.createImageData(N, N), idd = iimg.data;
+  const irimg = irg.createImageData(N, N), irdd = irimg.data;
   for(let i = 0; i < N * N; i++){
     const v = ifbm[i];
-    iceH[i] = v * 0.45;
+    iceH[i] = v * 0.48;
     const idx = i << 2;
-    idd[idx]     = Math.min(205, Math.max(76,  108 + v * 52)) | 0;
-    idd[idx + 1] = Math.min(222, Math.max(115, 148 + v * 48)) | 0;
-    idd[idx + 2] = Math.min(238, Math.max(150, 182 + v * 42)) | 0;
+    idd[idx]     = Math.min(205, Math.max(76,  104 + v * 56)) | 0;
+    idd[idx + 1] = Math.min(222, Math.max(115, 146 + v * 50)) | 0;
+    idd[idx + 2] = Math.min(238, Math.max(150, 182 + v * 44)) | 0;
     idd[idx + 3] = 255;
+    const rv = Math.min(230, Math.max(28, 72 + v * 155)) | 0;
+    irdd[idx] = irdd[idx + 1] = irdd[idx + 2] = rv; irdd[idx + 3] = 255;
   }
   ig.putImageData(iimg, 0, 0);
-  ig.strokeStyle = "rgba(215, 235, 250, 0.48)";
+  irg.putImageData(irimg, 0, 0);
+  ig.strokeStyle = "rgba(218, 238, 252, 0.54)";
+  irg.strokeStyle = "rgba(235, 235, 235, 0.85)";
   const rng = Vf(319);
-  for(let k = 0; k < 44; k++){
+  for(let k = 0; k < 56; k++){
     let x = rng() * N, y = rng() * N, a = rng() * Math.PI * 2;
-    ig.lineWidth = 0.8 + rng() * 1.4;
+    ig.lineWidth = 0.8 + rng() * 1.5;
+    irg.lineWidth = 1.6 + rng() * 2.0;
     ig.beginPath(); ig.moveTo(x, y);
+    irg.beginPath(); irg.moveTo(x, y);
     for(let s = 0; s < 5; s++){
       a += (rng() - 0.5) * 0.85;
       x += Math.cos(a) * (16 + rng() * 28);
       y += Math.sin(a) * (16 + rng() * 28);
       ig.lineTo(x, y);
+      irg.lineTo(x, y);
     }
     ig.stroke();
+    irg.stroke();
   }
   const iceMap = VCH_NORD_tex(ic, [14, 5], true);
-  const iceNorm = vHeightToNormal(iceH, N, 2.2, [14, 5]);
+  const iceRough = VCH_NORD_tex(irc, [14, 5], false);
+  const iceNorm = vHeightToNormal(iceH, N, 2.8, [14, 5]);
 
   /* 2.8. Гофролист ангара с шевроном */
   const mc = Qs(256), mg = mc.getContext("2d");
@@ -403,8 +414,8 @@ function VCH_NORD_materials(){
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
     }),
     ice: new fe({
-      map: iceMap, normalMap: iceNorm, normalScale: new ct(0.45, 0.45),
-      color: 0xa0cce8, roughness: 0.34, metalness: 0.12, envMapIntensity: 0.95
+      map: iceMap, normalMap: iceNorm, normalScale: new ct(0.62, 0.62),
+      roughnessMap: iceRough, color: 0xa4d0ec, roughness: 0.48, metalness: 0.16, envMapIntensity: 1.55
     }),
     concrete: new fe({
       map: concMap, normalMap: concNorm, normalScale: new ct(0.42, 0.42),
@@ -441,10 +452,10 @@ function VCH_NORD_materials(){
       vertexColors: true, roughness: 0.92, metalness: 0.03, envMapIntensity: 0.42
     }),
     lampAmber: new fe({
-      color: 0xffd088, emissive: 0xffa63a, emissiveIntensity: 1.8, roughness: 0.35
+      color: 0xffd088, emissive: 0xffa63a, emissiveIntensity: 2.6, roughness: 0.30
     }),
     lampRed: new fe({
-      color: 0xff5a42, emissive: 0xff2e14, emissiveIntensity: 2.2, roughness: 0.35
+      color: 0xff5a42, emissive: 0xff2e14, emissiveIntensity: 3.0, roughness: 0.30
     }),
     signRunway: new fe({ map: makeSignTex("ВПП 03 / 21", "ЗАПАД · КДП", "#eab238"), roughness: 0.78 }),
     signFuel:   new fe({ map: makeSignTex("СКЛАД ГСМ", "ВОСТОК · ОПАСНО", "#e2583e"), roughness: 0.78 }),
@@ -1149,17 +1160,24 @@ function VCH_NORD_scene(scene, physics, lights){
   VCH_NORD_tacticalProps(physics);
   VCH_NORD_nature();
 
-  /* Сбалансированный морозный свет без пересвета снега (bloom остаётся чистым) */
+  /* Сбалансированный морозный свет заката + расширенный охват теней для 4K карт */
   if(lights){
-    lights.sun.color.setHex(0xffdeb6);
-    lights.sun.intensity = 1.92;
-    lights.hemi.color.setHex(0x8cb8eb);
-    lights.hemi.groundColor.setHex(0x62778e);
-    lights.hemi.intensity = 0.62;
+    lights.sun.color.setHex(0xffd7ac);
+    lights.sun.intensity = 2.15;
+    if(lights.sun.shadow && lights.sun.shadow.camera){
+      const sh = lights.sun.shadow;
+      sh.camera.left = -56; sh.camera.right = 56;
+      sh.camera.top = 56;  sh.camera.bottom = -56;
+      sh.camera.far = 230;
+      sh.camera.updateProjectionMatrix();
+    }
+    lights.hemi.color.setHex(0x88b6eb);
+    lights.hemi.groundColor.setHex(0x5e748d);
+    lights.hemi.intensity = 0.66;
     lights.fill.color.setHex(0x7eaeef);
-    lights.fill.intensity = 0.38;
-    lights.bounce.color.setHex(0xffb87e);
-    lights.bounce.intensity = 0.20;
+    lights.fill.intensity = 0.42;
+    lights.bounce.color.setHex(0xffb478);
+    lights.bounce.intensity = 0.24;
   }
   if(scene.fog){
     scene.fog.color.setHex(0xb5cade);
