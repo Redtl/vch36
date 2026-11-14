@@ -131,10 +131,14 @@ window.addEventListener("keydown",e=>{
 },!0);
 
 /* ---- загрузка и постановка Скорпиона --------------------------------------- */
-let VCH_SCORPION_OK=!1;
-async function vchInitScorpion(){
+let VCH_SCORPION_OK=!1,VCH_SCORPION_BUSY=null;
+async function vchInitScorpion(forceRetry){
+  if(VCH_SCORPION_OK)return;
+  if(VCH_SCORPION_BUSY)return VCH_SCORPION_BUSY;
   const C=VCH_SC_CFG;
+  VCH_SCORPION_BUSY=(async()=>{
   try{
+    if(forceRetry&&typeof window.__vchLoadScorpionData==="function")window.__vchLoadScorpionData();
     const root=await vchScorpionGLB();
     const rig=mountScorpion(root);
     const px=12.0,pz=0.0;
@@ -180,8 +184,13 @@ async function vchInitScorpion(){
     const h=document.getElementById("tankhint");
     if(h){h.textContent="Scorpion не загрузился: "+e.message;h.style.color="#ff7a5c"}
     window.__vchGarage&&window.__vchGarage.onScorpionError&&window.__vchGarage.onScorpionError(e);
+  }finally{
+    VCH_SCORPION_BUSY=null;
   }
+  })();
+  return VCH_SCORPION_BUSY;
 }
+window.__vchRetryScorpion=()=>vchInitScorpion(!0);
 vchTankUI();
 window.__tanks=VCH_TANKS;window.__setActive=setActiveTank;window.__scorpCfg=VCH_SC_CFG;
 /* 4.3: код подключается загрузчиком, поэтому следующий модуль (11-rockets.js)

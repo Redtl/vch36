@@ -198,6 +198,9 @@ body.vch-modal #crosshair,body.vch-modal #recoilind,body.vch-modal #aimdot{opaci
   box-shadow:0 12px 36px rgba(0,0,0,.65); pointer-events:none;
 }
 #g-loader.hidden{ display:none; }
+#g-loader.err{ pointer-events:auto; cursor:pointer; border-color:rgba(255,110,80,.65); }
+#g-loader.err .g-spinner{ display:none; }
+#g-loader.err .g-loader-txt{ color:#ffb49e; }
 .g-spinner{
   width:28px; height:28px; border-radius:50%;
   border:2.5px solid rgba(118,255,3,.2); border-top-color:var(--to-green);

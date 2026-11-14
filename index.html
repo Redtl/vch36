@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
-  <link rel="stylesheet" href="css/app.css?v=12" />
+  <link rel="stylesheet" href="css/app.css?v=13" />
   <!-- vch-files-start
        ПОРЯДОК ДЛЯ СБОРКИ ОДНОГО ФАЙЛА (tools/build-single.py).
        В развёрнутой версии скрипты подключает загрузчик ниже и берёт
@@ -85,15 +85,61 @@ js/91-fx.js
        отрисовано — например данные второй локации, если игрок переключит
        карту в меню без перезагрузки страницы. Список пуст: сейчас смена
        карты идёт через location.href, и всё нужное лежит в цепочке. */
-    var V = "12";
+    var V = "13";
     var tail = ["data/scorpion-glb.js"];   /* второй танк: 10.4 МБ, не держим меню */
     window.__vchFiles = files;
     window.__vchLoaded = [];
+    var tailBusy = false;
+    function loadTail(attempt){
+      if(typeof window.VCH_SCORPION_B64_DATA === "string" && window.VCH_SCORPION_B64_DATA.length > 1000){
+        tailBusy = false;
+        window.__vchTailError = false;
+        window.__vchAllDone = true;
+        return;
+      }
+      if(tailBusy) return;
+      tailBusy = true;
+      window.__vchTail = true;
+      window.__vchTailError = false;
+      window.__vchAllDone = false;
+      var s = document.createElement("script");
+      s.src = attempt ? ("data/scorpion-glb.js?retry=" + attempt) : "data/scorpion-glb.js";
+      s.async = false;
+      var fail = function(){
+        tailBusy = false;
+        try{ s.remove() }catch(_){}
+        console.error("[vch] не загрузился data/scorpion-glb.js (попытка " + attempt + ")");
+        if(attempt < 2){
+          setTimeout(function(){ loadTail(attempt + 1) }, attempt === 0 ? 1200 : 3000);
+        }else{
+          window.__vchTailError = true;
+          window.__vchAllDone = true;
+        }
+      };
+      s.onload = function(){
+        tailBusy = false;
+        if(typeof window.VCH_SCORPION_B64_DATA === "string" && window.VCH_SCORPION_B64_DATA.length > 1000){
+          window.__vchLoaded.push("data/scorpion-glb.js");
+          (window.__vchT||(window.__vchT=[])).push(["data/scorpion-glb.js", Math.round(performance.now())]);
+          window.__vchTailError = false;
+          window.__vchAllDone = true;
+        }else{
+          fail();
+        }
+      };
+      s.onerror = fail;
+      document.head.appendChild(s);
+    }
+    window.__vchLoadScorpionData = function(){
+      if(typeof window.VCH_SCORPION_B64_DATA === "string" && window.VCH_SCORPION_B64_DATA.length > 1000) return true;
+      if(tailBusy) return true;
+      loadTail(Date.now());
+      return true;
+    };
     function step(list){
       /* Теги вставляются все сразу: с async=false браузер КАЧАЕТ их параллельно,
          а ВЫПОЛНЯЕТ строго в порядке вставки. Так загрузка не вырождается в
          цепочку последовательных запросов, а порядок остаётся как у defer. */
-      if(list === tail) window.__vchTail = true;
       let done = 0;
       list.forEach(function(f){
         const s = document.createElement("script");
@@ -107,8 +153,8 @@ js/91-fx.js
           }
           else console.error("[vch] не загрузился " + f);
           if(++done >= list.length){
-            if(list === tail) window.__vchAllDone = true;
-            else { window.__vchScriptsDone = true; step(tail) }
+            window.__vchScriptsDone = true;
+            loadTail(0);
           }
         };
         s.onload = function(){ fin(true) };

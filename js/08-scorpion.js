@@ -72,13 +72,16 @@ const pa=new Ef;let qo=0;const Xo=1/60;let Yo=0,Pc=0;function np(){requestAnimat
    index.html): стартовое меню появляется, не дожидаясь её закачки, а танк
    встаёт в строй через 1-3 с. Если данные уже в памяти (сборка одним файлом
    или хвост успел догрузиться) — берём их сразу. */
-function vchScorpionB64(){
+function vchScorpionB64(forceRetry){
   if(typeof VCH_SCORPION_B64_DATA!=="undefined")return Promise.resolve(VCH_SCORPION_B64_DATA);
+  if((forceRetry||window.__vchAllDone||window.__vchTailError)&&typeof window.__vchLoadScorpionData==="function"){
+    window.__vchLoadScorpionData();
+  }
   return new Promise(function(ok,no){
     const t0=Date.now();
     (function wait(){
       if(typeof VCH_SCORPION_B64_DATA!=="undefined")return ok(VCH_SCORPION_B64_DATA);
-      if(window.__vchAllDone||Date.now()-t0>6e4)
+      if(window.__vchAllDone||Date.now()-t0>18e4)
         return no(new Error("данные модели Scorpion не загрузились"));
       setTimeout(wait,60);
     })();

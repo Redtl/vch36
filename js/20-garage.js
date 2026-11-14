@@ -938,10 +938,11 @@
     if (loaderEl) {
       const waitScorp = (state.selectedTank === 1 && !state.scorpionReady);
       loaderEl.classList.toggle("hidden", !waitScorp);
+      loaderEl.classList.toggle("err", !!state.scorpionError);
       const txtEl = loaderEl.querySelector(".g-loader-txt");
       if (txtEl) {
         txtEl.textContent = state.scorpionError
-          ? ("ОШИБКА ЗАГРУЗКИ SCORPION: " + state.scorpionError)
+          ? ("ОШИБКА ЗАГРУЗКИ SCORPION: " + state.scorpionError + " · НАЖМИТЕ ДЛЯ ПОВТОРА")
           : "ЗАГРУЗКА 3D-МОДЕЛИ SCORPION…";
       }
     }
@@ -1104,6 +1105,11 @@
     idx = (idx === 1) ? 1 : 0;
     state.selectedTank = idx;
     try { localStorage.setItem("vch36.tank", String(idx)); } catch (e) {}
+
+    if (idx === 1 && !state.scorpionReady && state.scorpionError && typeof window.__vchRetryScorpion === "function") {
+      state.scorpionError = null;
+      window.__vchRetryScorpion();
+    }
 
     if (typeof VCH_PENDING !== "undefined") VCH_PENDING = idx;
     if (typeof VCH_TANKS !== "undefined" && idx < VCH_TANKS.length && typeof setActiveTank === "function") {
@@ -1444,6 +1450,19 @@
         selectTank(parseInt(card.dataset.tank, 10) || 0, true);
       });
     });
+
+    /* повторная попытка загрузки Scorpion по клику на сообщение об ошибке */
+    const loaderEl = document.getElementById("g-loader");
+    if (loaderEl) {
+      loaderEl.addEventListener("click", () => {
+        if (state.selectedTank === 1 && !state.scorpionReady && state.scorpionError && typeof window.__vchRetryScorpion === "function") {
+          state.scorpionError = null;
+          syncDisplayedTank();
+          syncTankUI();
+          window.__vchRetryScorpion();
+        }
+      });
+    }
 
     /* выбор карты */
     document.querySelectorAll("#g-map-list .g-mcard").forEach(card => {

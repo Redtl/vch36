@@ -12,7 +12,7 @@
    ========================================================================== */
 "use strict";
 
-const CACHE = "vch36-v12";
+const CACHE = "vch36-v13";
 
 self.addEventListener("install", () => { self.skipWaiting(); });
 
@@ -31,17 +31,22 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return;
 
   const isHeavyAsset = url.pathname.includes("/data/") || url.pathname.includes("/vendor/");
+  if (isHeavyAsset && url.searchParams.has("retry")) return;
 
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req);
 
     if (isHeavyAsset) {
-      const network = fetch(req).then((res) => {
-        if (res && res.ok) cache.put(req, res.clone());
-        return res;
-      }).catch(() => cached);
-      return cached || network;
+      if (cached) {
+        fetch(req).then((res) => {
+          if (res && res.status === 200) cache.put(req, res.clone());
+        }).catch(() => {});
+        return cached;
+      }
+      const fresh = await fetch(req);
+      if (fresh && fresh.status === 200) cache.put(req, fresh.clone());
+      return fresh;
     }
 
     try {
