@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/app.css?v=8" />
   <!-- vch-files-start
        ПОРЯДОК ДЛЯ СБОРКИ ОДНОГО ФАЙЛА (tools/build-single.py).
        В развёрнутой версии скрипты подключает загрузчик ниже и берёт
@@ -93,6 +93,7 @@ js/91-fx.js
        отрисовано — например данные второй локации, если игрок переключит
        карту в меню без перезагрузки страницы. Список пуст: сейчас смена
        карты идёт через location.href, и всё нужное лежит в цепочке. */
+    var V = "8";
     var tail = ["data/scorpion-glb.js"];   /* второй танк: 10.4 МБ, не держим меню */
     window.__vchFiles = files;
     window.__vchLoaded = [];
@@ -104,7 +105,7 @@ js/91-fx.js
       let done = 0;
       list.forEach(function(f){
         const s = document.createElement("script");
-        s.src = f;
+        s.src = (f.indexOf("js/") === 0) ? (f + "?v=" + V) : f;
         s.async = false;
         const fin = function(ok){
           if(ok){
@@ -406,7 +407,7 @@ js/91-fx.js
     <header id="g-top">
       <div class="g-brand">
         <div class="g-emblem" aria-hidden="true">
-          <svg viewBox="0 0 36 36"><polygon points="18,2 33,10 33,26 18,34 3,26 3,10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9 21h18l-2 4H11zM13 15h9l4-2v4h-13zM22 14h8v2h-8z" fill="currentColor"/></svg>
+          <svg width="32" height="32" viewBox="0 0 36 36"><polygon points="18,2 33,10 33,26 18,34 3,26 3,10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9 21h18l-2 4H11zM13 15h9l4-2v4h-13zM22 14h8v2h-8z" fill="currentColor"/></svg>
         </div>
         <div class="g-brand-txt">
           <div class="g-title">ВЧ-36 <span>// ГАРАЖ</span></div>
