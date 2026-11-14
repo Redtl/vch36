@@ -625,9 +625,9 @@ function kf(){
   const it=new ue;it.position.set(0,0,.72),k.add(it);
 
   /* ---------------- running gear ---------------- */
-  const Z=Fw(r),st=()=>({wheels:[],sprocket:null,idler:null,rollers:[],buf:Cw(),C:Pw(2+Kt.roadWheelZ.length+Kt.rollers.length)}),Q={left:st(),right:st()},Ot=Uw(Kt.trackWidth),tt={left:new Jt,right:new Jt},ot=(L,O)=>{const E=O*Kt.trackHalfTrack,S=Q[L];for(const nt of Kt.roadWheelZ){
+  const Z=Fw(r),st=()=>({wheels:[],sprocket:null,idler:null,rollers:[],buf:Cw(),C:Pw(2+Kt.roadWheelZ.length+Kt.rollers.length)}),Q={left:st(),right:st()},Ot=Uw(Kt.trackWidth),tt={left:new Jt,right:new Jt},ot=(L,O)=>{const E=O*Kt.trackHalfTrack,S=Q[L],torX=E-O*.40;for(const nt of Kt.roadWheelZ){
    const X=Z(e,E,Kt.roadWheelY,nt),
-         ax=E-O*.40,                       // внутрь от трака, в обход звеньев
+         ax=torX,                          // внутрь от трака, в обход звеньев
          px=ax,py=.18,pz=nt+.40,          // шарнир балансира на борту корпуса
          qx=ax,qy=.36,qz=nt+.72;          // верхний кронштейн пружины на борту корпуса
    te(.18,.16,.18,r.steelDark,px,py,pz,.02,e);          // корпус подшипника шарнира
@@ -645,8 +645,8 @@ function kf(){
    S.wheels.push(rec);VCH_poseLink(rec);
   }
   /* Торсион: один непрерывный стержень вдоль корпуса с подшипником на каждой станции. */
-  In(.046,5.6,r.steelDark,ax-O*.04,.18,0,12,e);
-  for(const nt of Kt.roadWheelZ)te(.13,.17,.15,r.steelDark,ax-O*.04,.18,nt,.02,e);const EW=E+O*Kt.endWheelOffset;S.sprocket=zw(r,e,EW,Kt.sprocket.y,Kt.sprocket.z),S.idler=Ow(r,e,EW,Kt.idler.y,Kt.idler.z);Bo(.085,Kt.endWheelOffset+.12,r.steelDark,E+O*Kt.endWheelOffset*.5,Kt.sprocket.y,Kt.sprocket.z,16,e),Bo(.085,Kt.endWheelOffset+.12,r.steelDark,E+O*Kt.endWheelOffset*.5,Kt.idler.y,Kt.idler.z,16,e);
+  In(.046,5.6,r.steelDark,torX-O*.04,.18,0,12,e);
+  for(const nt of Kt.roadWheelZ)te(.13,.17,.15,r.steelDark,torX-O*.04,.18,nt,.02,e);const EW=E+O*Kt.endWheelOffset;S.sprocket=zw(r,e,EW,Kt.sprocket.y,Kt.sprocket.z),S.idler=Ow(r,e,EW,Kt.idler.y,Kt.idler.z);Bo(.085,Kt.endWheelOffset+.12,r.steelDark,E+O*Kt.endWheelOffset*.5,Kt.sprocket.y,Kt.sprocket.z,16,e),Bo(.085,Kt.endWheelOffset+.12,r.steelDark,E+O*Kt.endWheelOffset*.5,Kt.idler.y,Kt.idler.z,16,e);
   /*
   Аккуратный корпусной подшипник для двух крайних колёс (ведущего и ленивца).
   Кронштейн стоит внутрь от полосы гусеницы, поэтому ничего не режет траки; до

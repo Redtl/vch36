@@ -113,10 +113,10 @@
     /* orbit camera */
     yaw: -0.66,
     pitch: 0.24,
-    dist: 10.4,
+    dist: 11.2,
     tgtYaw: -0.66,
     tgtPitch: 0.24,
-    tgtDist: 10.4,
+    tgtDist: 11.2,
     dragging: false,
     lastX: 0,
     lastY: 0,
@@ -807,9 +807,38 @@
   function alignToTurntable(group) {
     group.position.set(0, 0, 0);
     group.updateMatrixWorld(true);
-    const bb = new Xe().setFromObject(group);
-    if (isFinite(bb.min.y)) {
-      group.position.y += (TURNTABLE_Y - bb.min.y);
+    let minY = Infinity;
+    const v = new P();
+    const m = new Xt();
+    group.traverse(o => {
+      if (!o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+      const pos = o.geometry.attributes.position;
+      const mw = o.matrixWorld;
+      const els = mw.elements;
+      for (let i = 0; i < 16; i++) if (!isFinite(els[i])) return;
+      if (o.isInstancedMesh && o.instanceMatrix) {
+        const cnt = Math.min(o.count || 0, o.instanceMatrix.count || 0);
+        for (let i = 0; i < cnt; i++) {
+          o.getMatrixAt(i, m);
+          m.premultiply(mw);
+          for (let k = 0; k < pos.count; k++) {
+            v.fromBufferAttribute(pos, k).applyMatrix4(m);
+            if (isFinite(v.y) && v.y < minY) minY = v.y;
+          }
+        }
+      } else {
+        for (let k = 0; k < pos.count; k++) {
+          v.fromBufferAttribute(pos, k).applyMatrix4(mw);
+          if (isFinite(v.y) && v.y < minY) minY = v.y;
+        }
+      }
+    });
+    if (!isFinite(minY)) {
+      const bb = new Xe().setFromObject(group);
+      minY = bb.min.y;
+    }
+    if (isFinite(minY)) {
+      group.position.y += (TURNTABLE_Y - minY);
       group.updateMatrixWorld(true);
     }
   }
@@ -817,11 +846,8 @@
   function buildOBTDisplay() {
     if (gDisplayOBT || typeof kf !== "function") return;
     const rig = kf();
-    const groundY = (typeof Kt !== "undefined" && typeof Kt.groundY === "number") ? Kt.groundY : -1.1;
-    rig.group.position.set(0, TURNTABLE_Y - groundY, 0);
-    const flatProbe = (x, y, z, maxD) => Math.max(0, Math.min(maxD, y - TURNTABLE_Y));
     rig.group.updateMatrixWorld(true);
-    rig.update(0.016, { speedL: 0, speedR: 0, probe: flatProbe });
+    rig.update(0.016, { speedL: 0, speedR: 0, probe: null });
     alignToTurntable(rig.group);
 
     /* применить текущий износ и отражения, если 19-look уже активен */
@@ -1105,7 +1131,7 @@
     }
     if (userAction) {
       state.flashPulse = 0.9;
-      state.tgtDist = (idx === 1) ? 12.2 : 10.4;
+      state.tgtDist = (idx === 1) ? 12.2 : 11.2;
       try { an.clank && an.clank(); } catch (e) {}
     }
     syncDisplayedTank();
@@ -1427,7 +1453,7 @@
         if (!state.active) return;
         state.tgtYaw = -0.66;
         state.tgtPitch = 0.24;
-        state.tgtDist = (state.selectedTank === 1) ? 12.2 : 10.4;
+        state.tgtDist = (state.selectedTank === 1) ? 12.2 : 11.2;
       });
     }
 
@@ -1477,7 +1503,7 @@
     document.getElementById("g-btn-reset-cam")?.addEventListener("click", () => {
       state.tgtYaw = -0.66;
       state.tgtPitch = 0.24;
-      state.tgtDist = (state.selectedTank === 1) ? 12.2 : 10.4;
+      state.tgtDist = (state.selectedTank === 1) ? 12.2 : 11.2;
       state.spinAngle = 0.32;
     });
     document.getElementById("g-btn-glb")?.addEventListener("click", () => {
