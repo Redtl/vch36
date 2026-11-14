@@ -601,10 +601,15 @@ function mountScorpion(src){
      Стекло и фары остаются своими объектами (прозрачность/эмиссия), но
      настроены по значениям оптики/фар ОБТ. */
   const wheelNodes=new Set(wheelRigs.map(w=>w.piv)),
-        gearNodes=new Set(gearRigs.map(g=>g.node));
+        gearNodes=new Set(gearRigs.map(g=>g.node)),
+        /* ведущие колёса (drive=1) выделяем отдельно: ленивцы остаются
+           стальными, а ведущие красятся в цвет опорных катков. Проверять
+           drive НАДО ПЕРВЫМ — эти узлы лежат и в gearNodes тоже. */
+        driveNodes=new Set(gearRigs.filter(g=>g.drive).map(g=>g.node));
   const roleOf=o=>{
     for(let p=o;p;p=p.parent){
       if(wheelNodes.has(p))return "wheel";
+      if(driveNodes.has(p))return "drive";
       if(gearNodes.has(p))return "gear";
     }
     return null;
@@ -628,8 +633,11 @@ function mountScorpion(src){
         if("emissive"in mt){mt.emissive.setHex(0xffc164);mt.emissiveIntensity=1.5}
         mt.needsUpdate=!0;return mt;
       }
-      if(host==="wheel")return M.wheelHub;        // опорный каток
-      if(host==="gear")return M.steel;            // ведущее/ленивец
+      /* ведущее колесо получает тот же материал, что и опорный каток:
+         иначе оно светилось светлой сталью (M.steel, #9aa1a9) на фоне
+         тёмных wheelHub-катков и выбивалось из ливреи */
+      if(host==="wheel"||host==="drive")return M.wheelHub;   // опорный + ведущий
+      if(host==="gear")return M.steel;                       // ленивец
       /* двухцветная ливрея по референсу: бронеплиты модели («Painted metall»)
          — янтарь, силовой набор («MetalTank») — графит, торцы ракет — красные */
       if(nm.indexOf("rocket")>=0&&nm.indexOf("cap")>=0)return M.capRed;
