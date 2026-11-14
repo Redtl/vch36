@@ -15,7 +15,7 @@
    экспонентой (≈0.11 с до 90 %) и обновляет матрицу, когда разница заметна.
    ========================================================================== */
 function VCH_camFX(dt){
-  const tgt=J.fovTarget;
+  const tgt=(typeof window!=="undefined"&&window.__vchGarage&&window.__vchGarage.active)?44:J.fovTarget;
   if(!Number.isFinite(tgt))return;
   if(Math.abs(ye.fov-tgt)>.01){
     ye.fov+=(tgt-ye.fov)*Math.min(1,dt*9);

@@ -388,6 +388,11 @@ function vchTankRoots(){
     if(typeof VCH_TANKS!=="undefined")for(const t of VCH_TANKS){
       if(t&&t.rig&&t.rig.group&&out.indexOf(t.rig.group)<0)out.push(t.rig.group);
     }
+    if(window.__vchGarage&&window.__vchGarage.getDisplayRoots){
+      for(const r of window.__vchGarage.getDisplayRoots()){
+        if(r&&out.indexOf(r)<0)out.push(r);
+      }
+    }
   }catch(e){}
   return out;
 }
@@ -427,6 +432,7 @@ if(window.__vchLivery&&!window.__vchLivery.__vchBadge){
       b.classList.remove("flash");void b.offsetWidth;b.classList.add("flash");
     }
     if(window.__vchLookLiveryUI)window.__vchLookLiveryUI();
+    if(window.__vchGarage&&window.__vchGarage.syncLiveryUI)window.__vchGarage.syncLiveryUI();
     return r;
   };
   window.__vchLivery.__vchBadge=!0;
@@ -484,6 +490,7 @@ function vchLookWearUI(){
       VCH_WEAR_U.uGain.value=VCH_WEAR_BASE*(VCH_MAP===1?1.18:1.0);
       try{localStorage.setItem("vch36.wear",String(VCH_WEAR_BASE))}catch(e){}
       mark();
+      if(window.__vchGarage&&window.__vchGarage.syncWearUI)window.__vchGarage.syncWearUI();
     });
   }
   try{
@@ -528,7 +535,9 @@ function vchLookInit(){
     try{
       vchWearScan();
       /* высота днища = высота грунта под машиной: от неё считается грязевой пояс */
-      if(Ce&&Ce.body&&Ce.body.position){
+      if(window.__vchGarage&&window.__vchGarage.active){
+        VCH_WEAR_U.uBaseY.value=window.__vchGarage.turntableY??0.26;
+      }else if(Ce&&Ce.body&&Ce.body.position){
         const bp=Ce.body.position;
         VCH_WEAR_U.uBaseY.value=(typeof ge==="function")?ge(bp.x,bp.z):bp.y-1.6;
       }

@@ -654,18 +654,18 @@ function VCH_texScale(f){
       if(!VCH_TEXORIG.has(t))VCH_TEXORIG.set(t,img);
       const src=VCH_TEXORIG.get(t),sw=src.width|0;
       if(f>=.999){
-        if(t.image!==src){t.image=src;t.needsUpdate=!0}
+        if(t.image!==src){t.dispose();t.image=src;t.needsUpdate=!0}
         continue;
       }
       const tw=Math.max(16,Math.round(sw*f)),th=Math.max(16,Math.round((src.height|0)*f));
       if(t.image&&t.image.__tw===tw&&t.image.__th===th)continue;
-      if(tw>=sw){if(t.image!==src){t.image=src;t.needsUpdate=!0}continue}
+      if(tw>=sw){if(t.image!==src){t.dispose();t.image=src;t.needsUpdate=!0}continue}
       const c=document.createElement("canvas");c.width=tw;c.height=th;
       const cx=c.getContext("2d");
       cx.imageSmoothingEnabled=!0;cx.imageSmoothingQuality="high";
       try{cx.drawImage(src,0,0,tw,th)}catch(e){continue}
       c.__tw=tw;c.__th=th;
-      t.image=c;t.needsUpdate=!0;
+      t.dispose();t.image=c;t.needsUpdate=!0;
     }
   }catch(e){}
 }

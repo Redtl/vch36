@@ -953,7 +953,7 @@ function vchRocketSalvo(){
   if(an&&an.clank)an.clank();
 }
 
-{const r=new URLSearchParams(location.search).get("model");r&&Zf(r)}qt.turret.rotation.y=0;Pr(0);uh();J.aimPoint=new P;np();setTimeout(()=>vWarmUp("boot"),700);setInterval(()=>{J.started||ob(1/30)},33);window.__tank={get tank(){return qt},get vehicle(){return Ce},get tanks(){return VCH_TANKS},get active(){return VCH_ACTIVE},world:vn,map:VCH_MAP,state:J,audio:an,effects:en,scene:cn,camera:ye,renderer:Jn,composer:Zr,shells:Ls,rockets:VCH_RK,loadModelFile:ah,loadModelUrl:Zf,useSourceModel:fa,useProceduralModel:$f,modelCtl:Ee,rebuildCustomModel:Hr,groundProbe:Jf,async loadModelBuffer(r,t){const e=await Yf(new File([r],t||"model.glb"));fa(e,t||"model.glb")},frame:(r=1/60,t=!1)=>ip(r,t),setCameraMode:Pr,fire:lh,recoil:VCH_RECOIL,
+{const r=new URLSearchParams(location.search).get("model");r&&Zf(r)}qt.turret.rotation.y=0;Pr(0);uh();J.aimPoint=new P;np();setTimeout(()=>vWarmUp("boot"),700);setInterval(()=>{J.started||(window.__vchGarage&&window.__vchGarage.active)||ob(1/30)},33);window.__tank={get tank(){return qt},get vehicle(){return Ce},get tanks(){return VCH_TANKS},get active(){return VCH_ACTIVE},world:vn,map:VCH_MAP,state:J,audio:an,effects:en,scene:cn,camera:ye,renderer:Jn,composer:Zr,shells:Ls,rockets:VCH_RK,loadModelFile:ah,loadModelUrl:Zf,useSourceModel:fa,useProceduralModel:$f,modelCtl:Ee,rebuildCustomModel:Hr,groundProbe:Jf,async loadModelBuffer(r,t){const e=await Yf(new File([r],t||"model.glb"));fa(e,t||"model.glb")},frame:(r=1/60,t=!1)=>ip(r,t),setCameraMode:Pr,fire:lh,recoil:VCH_RECOIL,
 /* отладочные хуки выброса стреляной гильзы */
 eject:{get cases(){return V_CASES.length},get pending(){return V_caseDelay},
        spawn:V_ejectSpawn,queue:V_ejectSchedule}};

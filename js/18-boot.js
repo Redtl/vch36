@@ -41,7 +41,7 @@
     sens.addEventListener("change",()=>VCH_SETTINGS.save());
   }
   /* звук один — профиль из присланной версии (index (49).html), переключать нечего */
-  const mseg=q("pm-map"),curMap=new URLSearchParams(location.search).get("map")||"polygon";
+  const mseg=q("pm-map"),curMap=(typeof VCH_MAP_KEY==="string")?VCH_MAP_KEY:(new URLSearchParams(location.search).get("map")||"aleksandrovsk");
   if(mseg){
     for(const b of mseg.children){
       b.classList.toggle("on",b.dataset.map===curMap);
@@ -51,6 +51,7 @@
   q("ro-again")?.addEventListener("click",()=>{q("rangeover")?.classList.add("hidden");VCH_RANGE.start()});
   q("ro-close")?.addEventListener("click",()=>{q("rangeover")?.classList.add("hidden");VCH_RANGE.clear()});
   q("pm-resume")?.addEventListener("click",()=>VCH_PAUSE.toggle(!1));
+  q("pm-garage")?.addEventListener("click",()=>{VCH_PAUSE.toggle(!1);window.__vchGarage&&window.__vchGarage.open&&window.__vchGarage.open()});
   q("pm-range")?.addEventListener("click",()=>{VCH_PAUSE.toggle(!1);VCH_TRACK.clear();VCH_RANGE.start()});
   q("pm-track")?.addEventListener("click",()=>{VCH_PAUSE.toggle(!1);VCH_RANGE.clear();VCH_TRACK.start()});
   q("pm-battle")?.addEventListener("click",()=>{VCH_PAUSE.toggle(!1);VCH_RANGE.clear();VCH_TRACK.clear();VCH_AI.start(2)});
@@ -61,8 +62,10 @@
   q("pm-reset")?.addEventListener("click",()=>{VCH_RANGE.resetRecords();
     try{localStorage.removeItem(VCH_TRACK.key)}catch(e){};});
   window.addEventListener("keydown",e=>{
+    const inGarage=typeof J!=="undefined"&&!J.started;
     if(e.code==="Escape"){
       e.preventDefault();
+      if(inGarage){window.__vchGarage&&window.__vchGarage.closeHelp&&window.__vchGarage.closeHelp();return}
       if(!document.getElementById("rangeover")?.classList.contains("hidden")){
         document.getElementById("rangeover").classList.add("hidden");VCH_RANGE.clear();return;
       }
@@ -76,6 +79,7 @@
       }
       VCH_PAUSE.toggle();
     }
+    if(inGarage)return;
     if(e.code==="KeyB"&&!e.repeat){
       e.preventDefault();
       if(VCH_AI.on)VCH_AI.clear();
@@ -108,7 +112,9 @@ try{console.log("%c[vch] сборка "+window.__vchBuild,"color:#ff8a1f;font-we
    новая сборка подхватывается с первого же открытия, без «кэш на один
    перезапуск отстаёт». Кнопка сброса: __vchCacheReset(). */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  const hadController=!!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!hadController)return;
     if(sessionStorage.getItem("vch.sw.reloaded"))return;
     sessionStorage.setItem("vch.sw.reloaded","1");
     location.reload();

@@ -19,6 +19,7 @@ function vWarmUp(tag){
     Jn.compile(cn,ye);
     Jn.setRenderTarget(null);
     Jn.render(cn,ye);
+    if(window.__vchGarage&&window.__vchGarage.active&&typeof Zr!=="undefined"&&Zr)Zr.render();
     window.__vWarm=window.__vWarm||[];
     window.__vWarm.push({tag,ms:Math.round(performance.now()-t0),programs:Jn.info.programs.length})
   }catch(e){console.warn('warm-up',e)}
@@ -54,7 +55,8 @@ function vchWarmAll(tag){
     /* кадр нужен, чтобы собрались теневые (depth) варианты программ —
        compile() их не трогает. Если новых программ нет, кадр не рисуем:
        на слабом GPU он сам по себе стоит несколько миллисекунд. */
-    if(Jn.info.programs.length>n0){ Jn.setRenderTarget(null); Jn.render(cn,ye) }
+    if(Jn.info.programs.length>n0){ Jn.setRenderTarget(null); Jn.render(cn,ye);
+      if(window.__vchGarage&&window.__vchGarage.active&&typeof Zr!=="undefined"&&Zr)Zr.render(); }
     window.__vWarm=window.__vWarm||[];
     window.__vWarm.push({tag:"warm-all:"+(tag||""),ms:Math.round(performance.now()-t0),
                          programs:Jn.info.programs.length})
@@ -1320,6 +1322,18 @@ function mountScorpion(src){
   window.__vchScSeat=v=>({seat:scGearSeat(v),
     gears:gearRigs.map(g=>({side:g.side,drive:!!g.drive,r:+g.r.toFixed(4),
       tip:+(g.rTip||0).toFixed(4),body:+(g.rBody||0).toFixed(4)}))});
+  chassis.userData.__vchRole="chassis";
+  turret.userData.__vchRole="turret";
+  gunPivot.userData.__vchRole="gunPivot";
+  recoilGroup.userData.__vchRole="recoilGroup";
+  muzzlePoint.userData.__vchRole="muzzlePoint";
+  function bakeFlatTracks(){
+    chassis.updateWorldMatrix(!0,!1);
+    for(const t of trackGroups){
+      for(const w of t.wheels)w.dy=0;
+      scTrack(t,0,0);
+    }
+  }
   return {group,chassis,turret,turretStab,gunPivot,recoilGroup,muzzlePoint,muzzle:muzzlePoint,
           casePort,caseFlap,
           tracks:{left:{userData:{update(){}}},right:{userData:{update(){}}}},
@@ -1329,6 +1343,6 @@ function mountScorpion(src){
           materials:{paint:M.paint,paintLight:M.paintLight,paintDark:M.paintDark,
                      wheelHub:M.wheelHub,steel:M.steel,steelDark:M.steelDark,
                      track:M.track,trackTex:!!M.track.map},
-          update,fireRecoil,getMuzzle,getMuzzleBrakepoints,
+          update,fireRecoil,getMuzzle,getMuzzleBrakepoints,bakeFlatTracks,
           state:D,custom:!0,scorpion:!0,info,source:src};
 }

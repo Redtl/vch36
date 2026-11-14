@@ -630,6 +630,12 @@ function VCH_FOG_install(){
 /* камера/солнце/параметры — каждый кадр */
 function VCH_FOG_update(){
   if(!VCH_FOG.on || !cn) return;
+  if(window.__vchGarage && window.__vchGarage.active){
+    VCH_FOG_U.uFogBase.value = 0;
+    VCH_FOG_U.uFogMist.value = 0;
+    VCH_FOG_U.uFogGlow.value = 0;
+    return;
+  }
   const cm = VCH_FOG_cam();
   if(!cm) return;
   const e = cm.matrixWorld.elements;
@@ -665,6 +671,7 @@ function VCH_NIGHT_label(){
   const set = () => {
     const a = document.getElementById("maplabel");
     if(a && !/РАССВЕТ/.test(a.textContent)) a.textContent = "ЛОКАЦИЯ: АЛЕКСАНДРОВСК · РАССВЕТ";
+    if(window.__vchGarage && window.__vchGarage.selectedMap && window.__vchGarage.selectedMap !== "aleksandrovsk") return;
     const b = document.getElementById("mapname");
     if(b && !/РАССВЕТ/.test(b.textContent)) b.textContent = "АЛЕКСАНДРОВСК · РАССВЕТ";
     const c = document.getElementById("startloc");

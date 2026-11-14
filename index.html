@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ОБТ «36» — Александровск · рассвет</title>
+  <link rel="icon" href="data:," />
   <!-- 4.2: код разбит на модули; порядок загрузки обязателен (общая область
        видимости classic-скриптов, defer = прежнее поведение type="module"). -->
   <link rel="stylesheet" href="css/app.css" />
@@ -45,7 +46,9 @@ js/16-ui.js
 js/17-cam.js
 js/18-boot.js
 js/19-look.js
+js/20-garage.js
 js/90-sunrise.js
+js/91-fx.js
   -->
   <!--
     4.3 · ЗАГРУЗЧИК. Раньше в разметке лежали 34 тега <script defer> и браузер
@@ -84,7 +87,7 @@ js/90-sunrise.js
         "js/06e-aleksandrovsk.js","js/06d-map01-look.js","js/07a-audio-pcm.js","js/07-audio.js",
         "js/07b-meshopt.js","js/08-scorpion.js","js/09-fleet.js","js/10-ai.js","js/11-rockets.js","js/12-drive.js",
         "js/13-range.js","js/14-track.js","js/15-battle.js","js/16-ui.js","js/17-cam.js",
-        "js/18-boot.js","js/19-look.js","js/90-sunrise.js","js/91-fx.js"
+        "js/18-boot.js","js/19-look.js","js/20-garage.js","js/90-sunrise.js","js/91-fx.js"
       ]);
     /* Хвост: подгружается уже после того, как вся цепочка выполнена и меню
        отрисовано — например данные второй локации, если игрок переключит
@@ -334,6 +337,7 @@ js/90-sunrise.js
           </div></div>
         <div class="pm-btn">
           <button id="pm-resume">ПРОДОЛЖИТЬ</button>
+          <button id="pm-garage">В ГАРАЖ</button>
           <button id="pm-range">СТРЕЛЬБИЩЕ</button>
           <button id="pm-track">ТРАССА</button>
           <button id="pm-battle">БОЙ</button>
@@ -387,44 +391,253 @@ js/90-sunrise.js
     </div>
   </div>
 
-  <!-- Start screen -->
-  <div id="start">
-    <div class="start-card">
-      <div class="tag">ИНТЕРАКТИВНАЯ 3D-МОДЕЛЬ · ФИЗИКА · ОРУДИЕ</div>
-      <div class="tag" style="color:#ffb45c">ЛОКАЦИЯ: <span id="mapname">ПОЛИГОН</span></div>
-      <h1>ОБТ «36»</h1>
-      <div class="sub">Тяжёлый основной боевой танк. Raycast-подвеска, дифференциальное управление гусеницами, откатный механизм орудия, физика снарядов.</div>
-      <div id="maprow" style="margin-top:22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <label for="mapselect" style="font-size:10px;letter-spacing:3px;color:#9fb0be">ВЫБРАТЬ ЛОКАЦИЮ</label>
-        <select id="mapselect" style="font-family:inherit;font-size:12px;letter-spacing:1.5px;color:#e7eef4;background:#182129;border:1px solid #3a4854;border-radius:4px;padding:9px 14px;cursor:pointer;min-width:230px">
+  <!-- 3D Garage Screen (Tanki Online style) -->
+  <div id="start" class="garage">
+    <!-- Interactive 3D Viewport layer (orbit drag + wheel zoom) -->
+    <div id="g-stage" aria-label="3D-просмотр танка в гараже">
+      <div id="g-loader" class="hidden">
+        <div class="g-spinner"></div>
+        <div class="g-loader-txt">ЗАГРУЗКА 3D-МОДЕЛИ SCORPION…</div>
+      </div>
+      <div class="g-orbit-hint">ЛКМ — обзор 360° · Колёсико — масштаб · Двойной клик — сброс · Пробел — огневой тест</div>
+    </div>
+
+    <!-- Top Navigation & Battle Launch Bar -->
+    <header id="g-top">
+      <div class="g-brand">
+        <div class="g-emblem" aria-hidden="true">
+          <svg viewBox="0 0 36 36"><polygon points="18,2 33,10 33,26 18,34 3,26 3,10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9 21h18l-2 4H11zM13 15h9l4-2v4h-13zM22 14h8v2h-8z" fill="currentColor"/></svg>
+        </div>
+        <div class="g-brand-txt">
+          <div class="g-title">ВЧ-36 <span>// ГАРАЖ</span></div>
+          <div class="g-subtitle"><b id="g-top-tank">ОБТ «36»</b> · <b id="g-top-map">АЛЕКСАНДРОВСК</b></div>
+        </div>
+      </div>
+
+      <div class="g-mode-wrap">
+        <span class="g-lbl">РЕЖИМ</span>
+        <div class="g-seg" id="g-mode-seg">
+          <button type="button" data-mode="free" class="on">СВОБОДНЫЙ</button>
+          <button type="button" data-mode="battle">БОЙ С ИИ</button>
+          <button type="button" data-mode="range">СТРЕЛЬБИЩЕ</button>
+          <button type="button" data-mode="track">ТРАССА</button>
+        </div>
+      </div>
+
+      <div class="g-top-right">
+        <div class="g-q-wrap" title="Качество графики">
+          <span class="g-lbl">ГРАФИКА</span>
+          <div class="g-seg small" id="g-q-seg">
+            <button type="button" data-q="auto">АВТО</button>
+            <button type="button" data-q="0">ВЫС</button>
+            <button type="button" data-q="2">СР</button>
+            <button type="button" data-q="3">НИЗ</button>
+          </div>
+        </div>
+        <button type="button" id="g-btn-help" class="g-icon-btn" title="Управление">? УПРАВЛЕНИЕ</button>
+        <button type="button" id="launch"><span>В БОЙ!</span></button>
+      </div>
+    </header>
+
+    <!-- Left Panel: Tank Characteristics & Customization -->
+    <aside id="g-left" class="g-panel">
+      <div class="g-panel-head">
+        <span class="g-kicker">ХАРАКТЕРИСТИКИ</span>
+        <span class="g-badge-green">В СТРОЮ</span>
+      </div>
+      <h2 id="g-tank-name">ОБТ «36»</h2>
+      <div id="g-tank-role" class="g-role">Т-36М «ГРОЗА» · ОСНОВНОЙ БОЕВОЙ ТАНК</div>
+      <p id="g-tank-desc" class="g-desc">Сбалансированный основной боевой танк. Высокая максимальная скорость, быстрый автомат заряжания и стабильная 125-мм пушка.</p>
+
+      <div class="g-spec-grid">
+        <div><span>ВООРУЖЕНИЕ</span><b id="g-spec-gun">125 мм 2А82 БОПС</b></div>
+        <div><span>МАССА</span><b id="g-spec-mass">65 т</b></div>
+        <div><span>МАКС. СКОРОСТЬ</span><b id="g-spec-speed">58 км/ч</b></div>
+        <div><span>ПЕРЕЗАРЯДКА</span><b id="g-spec-reload">3.8 с</b></div>
+      </div>
+
+      <div class="g-bars">
+        <div class="g-bar-row"><span>БРОНЯ</span><div class="g-bar"><i id="g-bar-armor" style="width:84%"></i></div></div>
+        <div class="g-bar-row"><span>ОГНЕВАЯ МОЩЬ</span><div class="g-bar"><i id="g-bar-power" style="width:82%"></i></div></div>
+        <div class="g-bar-row"><span>ПОДВИЖНОСТЬ</span><div class="g-bar"><i id="g-bar-speed" style="width:88%"></i></div></div>
+        <div class="g-bar-row"><span>СКОРОСТРЕЛЬНОСТЬ</span><div class="g-bar"><i id="g-bar-reload" style="width:85%"></i></div></div>
+      </div>
+
+      <div class="g-cust-block">
+        <div class="g-cust-title">ОКРАСКА / КРАСКА <span class="g-hotkey">L</span></div>
+        <div class="g-swatches" id="g-liv-seg">
+          <button type="button" data-liv="amber" class="on"><i class="sw sw-amber"></i>ЯНТАРЬ</button>
+          <button type="button" data-liv="khaki"><i class="sw sw-khaki"></i>ХАКИ</button>
+          <button type="button" data-liv="pink"><i class="sw sw-pink"></i>РОЗОВЫЙ</button>
+        </div>
+      </div>
+
+      <div class="g-cust-block">
+        <div class="g-cust-title">ИЗНОС БРОНИ</div>
+        <div class="g-seg full" id="g-wear-seg">
+          <button type="button" data-wear="0">ВЫКЛ</button>
+          <button type="button" data-wear="0.5">СЛАБЫЙ</button>
+          <button type="button" data-wear="1" class="on">НОРМА</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Panel: Map Selection (Tanki Online Battle List) -->
+    <aside id="g-right" class="g-panel">
+      <div class="g-panel-head">
+        <span class="g-kicker">ВЫБОР КАРТЫ</span>
+        <span class="g-badge-amber" id="g-map-grav">1.00 G</span>
+      </div>
+
+      <div id="g-map-list">
+        <button type="button" class="g-mcard on" data-map="aleksandrovsk">
+          <span class="g-mthumb th-aleks"></span>
+          <span class="g-minfo">
+            <b>АЛЕКСАНДРОВСК</b>
+            <small>Рассвет · HDRI · 495×515 м</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
+        <button type="button" class="g-mcard" data-map="polygon">
+          <span class="g-mthumb th-poly"></span>
+          <span class="g-minfo">
+            <b>ПОЛИГОН</b>
+            <small>Учебный центр · 420×420 м</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
+        <button type="button" class="g-mcard" data-map="sandbox">
+          <span class="g-mthumb th-sand"></span>
+          <span class="g-minfo">
+            <b>ПЕСОЧНИЦА</b>
+            <small>Пустыня · Дюны · 420×420 м</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
+        <button type="button" class="g-mcard" data-map="space">
+          <span class="g-mthumb th-space"></span>
+          <span class="g-minfo">
+            <b>КОСМОС</b>
+            <small>Лунная база · 0.38 G</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
+        <button type="button" class="g-mcard" data-map="map01">
+          <span class="g-mthumb th-map01"></span>
+          <span class="g-minfo">
+            <b>КАРТА 01</b>
+            <small>Промзона · 598×601 м</small>
+          </span>
+          <span class="g-mcheck">✓</span>
+        </button>
+      </div>
+
+      <div class="g-map-detail">
+        <div class="g-md-title" id="g-map-title">АЛЕКСАНДРОВСК</div>
+        <div class="g-md-sub" id="g-map-sub">Рассвет · HDRI-панорама · 495 × 515 м</div>
+        <div class="g-md-desc" id="g-map-desc">Прибрежный промышленный город в лучах утреннего солнца. Плотная застройка, перепады высот, укрытия и длинные прострелы.</div>
+        <div class="g-md-note" id="g-map-note">Локация загружена в память — мгновенный старт</div>
+      </div>
+
+      <!-- Hidden legacy elements kept synced for compatibility with 06-world & 90-sunrise -->
+      <div class="g-legacy-sync" aria-hidden="true">
+        <span id="mapname">АЛЕКСАНДРОВСК</span>
+        <span id="startloc"></span>
+        <select id="mapselect">
           <option value="polygon">ПОЛИГОН</option>
           <option value="sandbox">ПЕСОЧНИЦА</option>
           <option value="space">ПЕСОЧНИЦА · КОСМОС</option>
           <option value="map01">КАРТА 01 (map_01.glb)</option>
           <option value="aleksandrovsk">АЛЕКСАНДРОВСК (aleksandrovsk_mm.glb)</option>
         </select>
-        <span id="startloc" style="font-size:10px;color:#6d7d8a;letter-spacing:1px"></span>
       </div>
-      <button id="launch">ЗАПУСТИТЬ ДВИГАТЕЛЬ</button>
-      <div class="ctrl-grid">
-        <div><kbd>W</kbd><kbd>S</kbd> газ / задний ход</div>
-        <div><kbd>A</kbd><kbd>D</kbd> поворот, разворот на месте</div>
-        <div><kbd>Мышь</kbd> навести курсор на цель</div>
-        <div><kbd>Z</kbd><kbd>X</kbd> поворот башни (влево / вправо)</div>
-        <div><kbd>ЛКМ</kbd> / <kbd>Space</kbd> выстрел</div>
-        <div><kbd>ПКМ</kbd> свободный обзор камеры</div>
-        <div><kbd>T</kbd> режим наведения: курсор / захват мыши</div>
-        <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / <kbd>C</kbd> режимы камеры</div>
-        <div><kbd>Shift</kbd> ускорение</div>
-        <div><kbd>Esc</kbd> пауза и настройки</div>
-        <div><kbd>P</kbd> режим «Стрельбище»</div>
-        <div><kbd>V</kbd> стабилизатор вооружения</div>
-        <div><kbd>R</kbd> перезапуск сцены</div>
-        <div><kbd>O</kbd> загрузить свою модель (.glb)</div>
-        <div><kbd>Перетащить</kbd> .glb в окно</div>
-        <div><kbd>L</kbd> окраска: янтарь/графит ↔ хаки</div>
+    </aside>
+
+    <!-- Bottom Dock: Turntable Tools & Tank Selection Carousel -->
+    <footer id="g-dock">
+      <div id="g-toolbar">
+        <button type="button" id="g-btn-spin" class="on" title="Автоматическое вращение подиума">⟳ ПОДИУМ</button>
+        <button type="button" id="g-btn-turret" class="on" title="Демонстрация башни">⚙ БАШНЯ</button>
+        <button type="button" id="g-btn-lights" class="on" title="Освещение подиума">☀ ПРОЖЕКТОРЫ</button>
+        <button type="button" id="g-btn-fire" class="accent" title="Холостой тест орудия (Space)">💥 ОГНЕВОЙ ТЕСТ</button>
+        <button type="button" id="g-btn-reset-cam" title="Сбросить ракурс камеры">⌖ РАКУРС</button>
+        <button type="button" id="g-btn-glb" title="Загрузить свою .GLB модель (или перетащите в окно)">📁 .GLB</button>
       </div>
-      <div class="hint">Смена локации перезапускает сцену · Колёсико мыши — зум · Esc — освободить курсор.</div>
+
+      <div id="g-tank-cards">
+        <button type="button" class="g-tcard on" data-tank="0">
+          <div class="g-tc-top">
+            <span class="g-tc-tier">М3 · ОСНОВНОЙ</span>
+            <span class="g-tc-stat ready">ГОТОВ</span>
+          </div>
+          <div class="g-tc-art" aria-hidden="true">
+            <svg viewBox="0 0 180 68">
+              <path d="M22 46h136l8 10-12 6H26l-12-6z" fill="currentColor" opacity=".85"/>
+              <path d="M32 34h110l14 12H18z" fill="currentColor" opacity=".55"/>
+              <path d="M58 20h54l10 14H50z" fill="currentColor"/>
+              <rect x="114" y="24" width="60" height="5" rx="1.5" fill="currentColor"/>
+              <rect x="166" y="22" width="9" height="9" rx="1" fill="#ff9e2c"/>
+              <circle cx="38" cy="54" r="5" fill="#0d1318"/><circle cx="58" cy="54" r="5" fill="#0d1318"/><circle cx="78" cy="54" r="5" fill="#0d1318"/><circle cx="98" cy="54" r="5" fill="#0d1318"/><circle cx="118" cy="54" r="5" fill="#0d1318"/><circle cx="138" cy="54" r="5" fill="#0d1318"/>
+            </svg>
+          </div>
+          <div class="g-tc-foot">
+            <b>ОБТ «36»</b>
+            <span>125 мм · 65 т · 58 км/ч</span>
+          </div>
+        </button>
+
+        <button type="button" class="g-tcard" data-tank="1">
+          <div class="g-tc-top">
+            <span class="g-tc-tier scorp">М3+ · РАКЕТНЫЙ</span>
+            <span class="g-tc-stat loading" id="g-scorp-status">ЗАГРУЗКА…</span>
+          </div>
+          <div class="g-tc-art" aria-hidden="true">
+            <svg viewBox="0 0 180 68">
+              <path d="M18 46h142l10 10-12 6H24l-12-6z" fill="currentColor" opacity=".85"/>
+              <path d="M28 33h118l14 13H16z" fill="currentColor" opacity=".55"/>
+              <path d="M52 19h58l12 14H44z" fill="currentColor"/>
+              <rect x="44" y="13" width="24" height="12" rx="2" fill="#ff9e2c" opacity=".92"/>
+              <circle cx="50" cy="17" r="1.7" fill="#0d1318"/><circle cx="56" cy="17" r="1.7" fill="#0d1318"/><circle cx="62" cy="17" r="1.7" fill="#0d1318"/>
+              <circle cx="50" cy="22" r="1.7" fill="#0d1318"/><circle cx="56" cy="22" r="1.7" fill="#0d1318"/><circle cx="62" cy="22" r="1.7" fill="#0d1318"/>
+              <rect x="110" y="23" width="64" height="5.5" rx="1.5" fill="currentColor"/>
+              <circle cx="36" cy="54" r="5.2" fill="#0d1318"/><circle cx="58" cy="54" r="5.2" fill="#0d1318"/><circle cx="80" cy="54" r="5.2" fill="#0d1318"/><circle cx="102" cy="54" r="5.2" fill="#0d1318"/><circle cx="124" cy="54" r="5.2" fill="#0d1318"/><circle cx="144" cy="54" r="5.2" fill="#0d1318"/>
+            </svg>
+          </div>
+          <div class="g-tc-foot">
+            <b>SCORPION</b>
+            <span>125 мм + 10 ПУ · Штурмовой</span>
+          </div>
+        </button>
+      </div>
+    </footer>
+
+    <!-- Controls Modal -->
+    <div id="g-help-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="g-help-title">
+      <div class="g-modal-card">
+        <div class="g-modal-head">
+          <h3 id="g-help-title">УПРАВЛЕНИЕ В БОЮ И ГАРАЖЕ</h3>
+          <button type="button" id="g-help-close" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="ctrl-grid">
+          <div><kbd>W</kbd><kbd>S</kbd> газ / задний ход</div>
+          <div><kbd>A</kbd><kbd>D</kbd> поворот, разворот на месте</div>
+          <div><kbd>Мышь</kbd> наведение курсором на цель</div>
+          <div><kbd>Z</kbd><kbd>X</kbd> поворот башни с клавиатуры</div>
+          <div><kbd>ЛКМ</kbd> / <kbd>Space</kbd> выстрел из пушки</div>
+          <div><kbd>Q</kbd><kbd>E</kbd> залп ракет (на Scorpion)</div>
+          <div><kbd>ПКМ</kbd> свободный обзор камеры</div>
+          <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / <kbd>C</kbd> смена вида</div>
+          <div><kbd>T</kbd> курсор ↔ захват мыши</div>
+          <div><kbd>V</kbd> стабилизатор орудия</div>
+          <div><kbd>Shift</kbd> форсаж двигателя</div>
+          <div><kbd>Tab</kbd> быстрая смена танка</div>
+          <div><kbd>L</kbd> смена окраски танка</div>
+          <div><kbd>P</kbd><kbd>K</kbd><kbd>B</kbd> стрельбище / трасса / бой</div>
+          <div><kbd>F</kbd> настройки света (Александровск)</div>
+          <div><kbd>O</kbd> / Drop .GLB — своя модель</div>
+        </div>
+      </div>
     </div>
   </div>
+</body>
 </html>

@@ -64,13 +64,17 @@ const VCH_SETTINGS={
   },
   setQ(q){this.q=String(q);this.save();this.applyQ()},
   setSens(v){this.sens=Te.clamp(+v||1,.3,2.5);this.save();this.applyQ()},
-  goMap(key){
-    const cur=new URLSearchParams(location.search).get("map")||"polygon";
+  goMap(key,autostart){
+    const cur=(typeof VCH_MAP_KEY==="string")?VCH_MAP_KEY:(new URLSearchParams(location.search).get("map")||"aleksandrovsk");
     if(cur===key)return;
     try{localStorage.setItem("vch36.map",key)}catch(e){}
+    try{
+      if(autostart)sessionStorage.setItem("vch36.autostart","1");
+      else sessionStorage.removeItem("vch36.autostart");
+    }catch(e){}
     const u=new URL(location.href);u.searchParams.set("map",key);
     /* 6.2: сначала гасим картинку, потом перезагружаемся — без белой вспышки */
-    VCH_FADE.to(()=>{location.href=u.href},320);
+    VCH_FADE.to(()=>{location.href=u.href},300);
   }
 };
 
