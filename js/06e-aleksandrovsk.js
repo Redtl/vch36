@@ -82,7 +82,10 @@ function VCH_ALEKS_insert(root){
       if(m){
         if(m.roughness!==undefined)m.roughness=1;
         if(m.metalness!==undefined&&m.metalness>0)m.metalness=0;
-        m.envMapIntensity=1.0;
+        /* task 18: карта должна брать свет панорамы; значение задаёт
+           ползунок «HDRI на карте» (VCH_NIGHT.mapEnv). */
+        m.envMapIntensity=(typeof VCH_NIGHT!=="undefined"&&VCH_NIGHT.mapEnv!==undefined)
+                          ?VCH_NIGHT.mapEnv:1.0;
         m.needsUpdate=!0;
       }
       meshes++;
@@ -117,7 +120,8 @@ function VCH_ALEKS_insert(root){
         sh.camera.far=460;sh.mapSize.set(2048,2048);
         sh.camera.updateProjectionMatrix();
       }
-      L.sun.intensity=Math.max(L.sun.intensity||2.4,2.7);
+      /* task 18: интенсивность солнца больше не форсируем — её задаёт
+         надстройка «Рассвет» по панораме (ползунок «Солнце»). */
     }
     if(VCH_ALEKS.scene3&&VCH_ALEKS.scene3.fog){
       const f=VCH_ALEKS.scene3.fog;

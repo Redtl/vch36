@@ -42,15 +42,48 @@ const VCH_NIGHT = {
   tint:[1.05,1.01,0.96],  /* лёгкое тепло: HDRI у зенита очень «циановая» */
   sat:0.82,           /* насыщенность неба: тонмаппинг игры её подкручивает */
   zenithDim:[0.99,1.00,1.03],  /* лёгкий градиент к зениту, без ночного затемнения */
-  envGain:1.30,       /* яркость окружения (отражения/ambient); было 1.85 — пересвет */
+  envGain:0.85,       /* яркость окружения (environmentIntensity) для всех материалов */
   exposure:1.02,      /* toneMappingExposure (дневной файл: 1.02) */
-  moonCol:0xffdcb8, moonI:2.40,   /* солнце рассвета: направленный свет + тени (было 3.00) */
+  moonCol:0xffdcb8, moonI:2.40,   /* диск солнца на небе (в шейдере купола) */
+  /* Отдельная сила направленного источника: он же рисует тени. Нельзя брать
+     moonI — при нужной для теней силе (около 8) диск на небе сгорает в белое
+     пятно. Физически это один источник, но яркость диска и освещённость
+     сцены масштабируются по-разному, поэтому два ключа. */
+  sunI:8.0,
   moonDisk:16.0, moonSize:0.012,  /* диск солнца в шейдере неба (HDR) и его радиус, cos */
   stars:0.0, starDensity:165.0, starSize:0.085,   /* звёзд на рассвете нет */
-  hemiSky:0xa8c4e8, hemiGround:0x6d5f4e, hemiI:1.00,  /* в дымке тени не должны проваливаться в чёрноту (было 1.15) */
-  fillCol:0xffe0c0, fillI:0.50,
   fog:0xc9cfd6, fogD:0.0007,
-  lampCol:0xffc98a, lampI:0.0, lampDist:28, lampH:4.2
+  lampCol:0xffc98a, lampI:0.0, lampDist:28, lampH:4.2,
+  /* ---- task 18 · свет только от HDRI ------------------------------------
+     Надстройка «Рассвет» ставила панораму на купол неба, но сцену освещали
+     четыре искусственных источника (hemi 1.0, ambient 0.19, fill 0.5,
+     bounce 0.38) плюс солнце, которое каждый кадр переставлялось в 10-ai.js
+     на фиксированное смещение (-52,62,-78) — то есть не туда, где солнце
+     нарисовано в HDRI. Из-за этого танк и карта освещались «сами по себе»,
+     а тени домов не совпадали с панорамой.
+     Теперь: искусственные источники по умолчанию выключены, солнце держит
+     направление из HDRI, окружение строится из той же откорректированной
+     панорамы, что видна в кадре (VCH_NIGHT_envSrc). Ползунки оставлены,
+     чтобы при желании вернуть подсветку теней.                            */
+  hemiSky:0xa8c4e8, hemiGround:0x6d5f4e, hemiI:0.00,
+  fillCol:0xffe0c0, fillI:0.00,
+  ambI:0.00,          /* AmbientLight — 0: весь свет от панорамы */
+  bounceI:0.00,       /* направленный «отражённый от грунта» — 0 */
+  sunDist:190,        /* расстояние от цели до солнца (влияет на near/far теней) */
+  /* Солнце в панораме стоит почти у горизонта (высота 2.2°): физически верно,
+     но освещённость горизонтальной поверхности при этом всего sin(2°) = 3%,
+     тени от домов не читаются вообще. sunLift задаёт минимальную высоту
+     солнца над горизонтом в градусах — свет остаётся «рассветным» (длинные
+     тени), но тени видно. 0 = строго по панораме. */
+  sunLift:16,
+  shadowSpan:70,      /* полуохват тень-камеры, м: было 110 на всю карту (250 м) */
+  /* bias 0 — при -0.0006 тени от домов практически исчезали (замер: 14% кадра
+     вместо 45%). От acne держит один normalBias. */
+  shadowBias:0, shadowNormalBias:0.03, shadowMap:2048,
+  mapEnv:1.15,        /* envMapIntensity материалов карты Александровск */
+  envW:1024           /* ширина панорамы для окружения: PMREM всё равно
+                         сворачивает её в куб 256, большего не нужно, зато
+                         пересчёт при движении ползунков идёт за десятки мс */
 };
 const VCH_LAMP_SITES = [[25.2, 16.8, -6.0], [-5.8, -32.2, 0.0], [-35.8, -1.8, 0.0], [34.2, -19.2, -6.0], [-9.8, 41.2, 0.0], [20.2, 41.8, -0.0], [26.2, -39.8, 0.0], [-36.8, -39.2, 6.0], [-2.2, -56.2, 6.0], [-59.8, -1.8, 0.0], [59.2, 17.8, -6.0], [-34.8, 51.2, 0.0], [-5.2, 62.2, 6.0], [49.2, 41.8, -0.0], [68.2, -9.2, -6.0], [-58.8, -39.2, 6.0], [-81.8, -5.2, 0.0], [24.2, -78.2, -0.0], [-38.8, -72.2, 6.0], [-71.2, 45.8, -0.0], [84.2, 32.2, 6.0], [-78.8, -47.2, 6.0], [-10.8, -93.8, 0.0], [78.2, 58.8, 6.0], [-99.8, 19.8, 0.0], [-33.8, -99.8, 0.0]];
 
@@ -216,11 +249,92 @@ function VCH_NIGHT_domeApply(){
 }
 
 /* --------------------------- 3. окружение (PMREM) ----------------------- */
+/* Раньше PMREM строился из «сырой» панорамы: ползунки оттенка, насыщенности,
+   контраста и яркости правили только купол неба, а на танк и карту шёл
+   неоткорректированный свет — именно поэтому «свет от HDRI» на поверхностях
+   не читался. Здесь панорама пересчитывается теми же формулами, что и в
+   шейдере купола (поворот az/el, pow*gain, tint, zenithDim, насыщенность,
+   свечение горизонта, диск солнца), и уже из неё считается IBL.
+   Разрешение envW намеренно ниже исходного 4096: PMREM всё равно сворачивает
+   панораму до грубых уровней, а пересчёт в 4 раза дешевле — это позволяет
+   пересобирать окружение при движении ползунков.                           */
+let VCH_NIGHT_ENVSRC = null;
+function VCH_NIGHT_envSrc(){
+  if(!VCH_NIGHT_TEX || !VCH_NIGHT_TEX.image || !VCH_NIGHT_TEX.image.data) return null;
+  const img = VCH_NIGHT_TEX.image, sw = img.width, sh = img.height, sd = img.data;
+  const W = Math.max(256, VCH_NIGHT.envW|0), H = W>>1;
+  const out = new Float32Array(W*H*4);
+  const ca=Math.cos(VCH_NIGHT.az), sa=Math.sin(VCH_NIGHT.az);
+  const ct=Math.cos(VCH_NIGHT.el), st=Math.sin(VCH_NIGHT.el);
+  const gain=VCH_NIGHT.gain, pw=VCH_NIGHT.contrast, sat=VCH_NIGHT.sat;
+  const t0=VCH_NIGHT.tint, zn=VCH_NIGHT.zenithDim;
+  const size=VCH_NIGHT.moonSize, diskI=VCH_NIGHT.moonDisk;
+  const c0=Math.cos(size), c1=Math.cos(size*0.86);
+  const mr=1.0, mg=0.97, mb=0.90;          /* цвет диска — как uMoonCol в куполе */
+  /* направление на солнце в системе панорамы: skyDir(normalize(moon)) */
+  const mv=VCH_NIGHT_SKY.moon, ml=Math.hypot(mv[0],mv[1],mv[2])||1;
+  const ax=mv[0]/ml, ay=mv[1]/ml, av=mv[2]/ml;
+  const smooth=(a,b,x)=>{ let t=(x-a)/(b-a); t=t<0?0:t>1?1:t; return t*t*(3-2*t) };
+  const bx=ax*ca-av*sa, by=ay, bz=ax*sa+av*ca;
+  const cx2=bx, cy2=by*ct-bz*st, cz2=by*st+bz*ct;
+  const cl=Math.hypot(cx2,cy2,cz2)||1;
+  const Mx=cx2/cl, My=cy2/cl, Mz=cz2/cl;
+  const TP=Math.PI*2, IP=1/Math.PI, HPI=0.5/Math.PI;
+  for(let y=0;y<H;y++){
+    const v=(y+0.5)/H, th=v*Math.PI, sy=Math.cos(th), sr=Math.sin(th);
+    for(let x=0;x<W;x++){
+      const u=(x+0.5)/W, ph=(u-0.5)*TP;
+      const dx=sr*Math.cos(ph), dy=sy, dz=sr*Math.sin(ph);
+      /* skyDir(): сначала поворот по az, потом наклон по el — как в куполе */
+      const rx=dx*ca-dz*sa, ry=dy, rz=dx*sa+dz*ca;
+      const tx=rx, ty=ry*ct-rz*st, tz=ry*st+rz*ct;
+      let uu=Math.atan2(tz,tx)*HPI+0.5;
+      let vv=Math.acos(ty<-1?-1:(ty>1?1:ty))*IP;
+      let px=(uu*sw)|0, py=(vv*sh)|0;
+      if(px<0)px=0; else if(px>=sw)px=sw-1;
+      if(py<0)py=0; else if(py>=sh)py=sh-1;
+      const si=(py*sw+px)*4;
+      let R=sd[si], G=sd[si+1], B=sd[si+2];
+      if(pw!==1){
+        R=Math.pow(R>1e-5?R:1e-5,pw); G=Math.pow(G>1e-5?G:1e-5,pw); B=Math.pow(B>1e-5?B:1e-5,pw);
+      }
+      R*=gain; G*=gain; B*=gain;
+      const k1=smooth(-0.01,0.12,dy);
+      R*=1.04+(t0[0]-1.04)*k1; G*=0.93+(t0[1]-0.93)*k1; B*=0.84+(t0[2]-0.84)*k1;
+      const k2=smooth(0.06,0.55,dy);
+      R*=1+(zn[0]-1)*k2; G*=1+(zn[1]-1)*k2; B*=1+(zn[2]-1)*k2;
+      if(sat!==1){ const L=0.2126*R+0.7152*G+0.0722*B; R=L+(R-L)*sat; G=L+(G-L)*sat; B=L+(B-L)*sat }
+      const e=Math.exp(-Math.abs(dy)*13.0)*smooth(-0.06,0.0,dy);
+      R+=0.050*e; G+=0.030*e; B+=0.013*e;
+      const k3=1-0.45*smooth(0.0,-0.10,dy);
+      R*=k3; G*=k3; B*=k3;
+      const dm=tx*Mx+ty*My+tz*Mz;
+      if(dm>0.90){
+        const disk=smooth(c0,c1,dm);
+        const glow=(Math.pow(dm,900.0)*0.20+Math.pow(dm,90.0)*0.035)*0.22;
+        const add=disk*diskI+glow;
+        R+=mr*add; G+=mg*add; B+=mb*add;
+      }
+      const o=(y*W+x)*4;
+      out[o]=R>0?R:0; out[o+1]=G>0?G:0; out[o+2]=B>0?B:0; out[o+3]=1;
+    }
+  }
+  const tex = new hf(out,W,H,bn,Un);
+  tex.mapping = Vc; tex.colorSpace = Ye; tex.flipY = false;
+  tex.minFilter = pn; tex.magFilter = pn; tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
 function VCH_NIGHT_buildEnv(){
   try{
+    let src = null;
+    try{ src = VCH_NIGHT_envSrc() }catch(e){ console.warn("[sunrise] envSrc",e) }
+    if(!src) src = VCH_NIGHT_TEX;            /* если пересчёт не удался — сырая панорама */
+    if(!src) return null;
     const pm = new vl(Jn);                    /* PMREMGenerator */
-    const env = pm.fromEquirectangular(VCH_NIGHT_TEX);
+    const env = pm.fromEquirectangular(src);
     pm.dispose();
+    if(src !== VCH_NIGHT_TEX && src.dispose) { try{ src.dispose() }catch(e){} }
     if(VCH_NIGHT_ENV && VCH_NIGHT_ENV.dispose) { try{ VCH_NIGHT_ENV.dispose() }catch(e){} }
     VCH_NIGHT_ENV = env.texture;
     cn.environment = env.texture;
@@ -230,49 +344,55 @@ function VCH_NIGHT_buildEnv(){
 }
 
 /* ------------------------------- 4. свет -------------------------------- */
+let VCH_NIGHT_SUN_DIR = null;
 function VCH_NIGHT_lights(){
   const m = VCH_NIGHT_SKY.moon;
   /* свет ставим ровно туда, где солнце нарисовано в панораме (с учётом az/el) */
   const ca=Math.cos(VCH_NIGHT.az), sa=Math.sin(VCH_NIGHT.az);
-  const dir = new P(m[0]*ca-m[2]*sa, Math.max(m[1],0.16), m[0]*sa+m[2]*ca).normalize();
+  const lift = Math.sin((VCH_NIGHT.sunLift||0)*Math.PI/180);
+  const dir = new P(m[0]*ca-m[2]*sa, Math.max(m[1], lift), m[0]*sa+m[2]*ca).normalize();
+  VCH_NIGHT_SUN_DIR = dir;
   const sun = vSunLight();
   if(sun){
-    sun.position.copy(dir).multiplyScalar(170);
-    sun.target.position.set(0,0,0); sun.target.updateMatrixWorld();
+    /* куда именно светить — решает VCH_NIGHT_shadowFollow() каждый кадр:
+       центр цели = танк (с округлением до текселя), смещение = это направление */
     sun.color.setHex(VCH_NIGHT.moonCol);
-    sun.intensity = VCH_NIGHT.moonI;
+    sun.intensity = VCH_NIGHT.sunI;
     if(sun.shadow){
-      const sh = sun.shadow;
-      sh.camera.left = -110; sh.camera.right = 110;
-      sh.camera.top = 110;  sh.camera.bottom = -110;
-      sh.camera.near = 20;  sh.camera.far = 460;
-      sh.mapSize.set(2048,2048);
+      const sh = sun.shadow, span = VCH_NIGHT.shadowSpan, D = VCH_NIGHT.sunDist;
+      sh.camera.left = -span; sh.camera.right = span;
+      sh.camera.top = span;  sh.camera.bottom = -span;
+      sh.camera.near = Math.max(1, D - span*2 - 60);
+      sh.camera.far  = D + span*2 + 60;
+      const ms = Math.max(512, VCH_NIGHT.shadowMap|0);
+      if(sh.mapSize.width !== ms){
+        sh.mapSize.set(ms,ms);
+        if(sh.map){ sh.map.dispose(); sh.map = null }
+      }
       sh.camera.updateProjectionMatrix();
-      sh.bias = -0.0007; sh.normalBias = 0.07;
-      if(sh.map){ sh.map.dispose(); sh.map = null; }
+      sh.bias = VCH_NIGHT.shadowBias; sh.normalBias = VCH_NIGHT.shadowNormalBias;
     }
   }
+  /* Искусственный свет. Раньше hemi/ambient/fill/bounce несли бóльшую часть
+     освещённости, из-за чего HDRI на поверхностях почти не читался. По
+     умолчанию всё выключено: сцену освещают солнце из панорамы и IBL.
+     Ползунки оставлены — ими возвращают подсветку теней, если нужно. */
   const hemi = cn.children.find(o=>o.isHemisphereLight);
   if(hemi){
     hemi.color.setHex(VCH_NIGHT.hemiSky);
     hemi.groundColor.setHex(VCH_NIGHT.hemiGround);
     hemi.intensity = VCH_NIGHT.hemiI;
   }
-  /* остальные направленные источники (fill/bounce) — приглушить и охладить;
-     «отражённому от грунта» даём направление спереди-справа ОТ СТАРТА,
-     иначе камера/танк стоят в тени и не читаются */
-  let fill=null;
+  for(const o of cn.children) if(o.isAmbientLight) o.intensity = VCH_NIGHT.ambI;
+  /* fill и bounce — два оставшихся направленных источника без теней */
+  let nth = 0;
   for(const o of cn.children){
     if(o.isDirectionalLight && o !== sun){
-      o.intensity = Math.min(o.intensity, VCH_NIGHT.fillI);
-      o.color.setHex(VCH_NIGHT.fillCol);
-      if(!fill) fill=o;
+      const isFill = (nth++)===0;
+      o.intensity = isFill ? VCH_NIGHT.fillI : VCH_NIGHT.bounceI;
+      o.color.setHex(isFill ? VCH_NIGHT.fillCol : 0xffd9b0);
+      if(o.target){ o.target.position.set(0,0,0); o.target.updateMatrixWorld() }
     }
-  }
-  if(fill){
-    fill.position.set(38,26,-42);          /* от старта (45.25, 59.75) к камере-зрителю */
-    if(fill.target){ fill.target.position.set(0,0,0); fill.target.updateMatrixWorld() }
-    fill.intensity = VCH_NIGHT.fillI;
   }
   if(VCH_ALEKS.scene3 && VCH_ALEKS.scene3.fog){
     const f = VCH_ALEKS.scene3.fog;
@@ -280,6 +400,63 @@ function VCH_NIGHT_lights(){
     f.density = VCH_NIGHT.fogD;
   }
   Jn.toneMappingExposure = VCH_NIGHT.exposure;
+}
+
+/* ------------------- 4b. тени: камера следует за танком ------------------ */
+/* 10-ai.js каждый кадр ставит солнце в «танк + (-52,62,-78)» — то есть вовсе
+   не туда, где солнце нарисовано в HDRI. Поэтому тени домов лежали не по
+   панораме. Перехватываем renderer.render: это выполняется уже после игрового
+   кадра, поэтому наше направление не затирается. Центр тень-камеры — танк,
+   округлённый до текселя: иначе при движении тени «ползут» и дрожат.       */
+function VCH_NIGHT_shadowFollow(){
+  if(!VCH_NIGHT_GUARD || !VCH_NIGHT_SUN_DIR) return;
+  const sun = vSunLight();
+  if(!sun || !sun.castShadow || !sun.shadow) return;
+  /* Живой танк — window.__scorpion.rig.group. Глобальный qt в этом бандле
+     указывает на другой объект (он стоит в 0,0 и не двигается), поэтому
+     брать позицию из него нельзя: тень-камера осталась бы на спавне. */
+  let tx=0, ty=0, tz=0, g=null;
+  try{ const R = (typeof window !== "undefined") ? window.__scorpion : null;
+       if(R && R.rig && R.rig.group && R.rig.group.position) g = R.rig.group;
+       else if(typeof qt !== "undefined" && qt && qt.group) g = qt.group;
+       if(g && g.position){ tx=g.position.x; ty=g.position.y; tz=g.position.z } }catch(e){}
+  const span = VCH_NIGHT.shadowSpan, D = VCH_NIGHT.sunDist;
+  const ms = sun.shadow.mapSize.width || 2048;
+  const texel = (span*2)/ms;
+  const cx = Math.round(tx/texel)*texel,
+        cy = Math.round(ty/texel)*texel,
+        cz = Math.round(tz/texel)*texel;
+  sun.target.position.set(cx, cy, cz);
+  sun.target.updateMatrixWorld();
+  sun.position.set(cx + VCH_NIGHT_SUN_DIR.x*D,
+                   cy + VCH_NIGHT_SUN_DIR.y*D,
+                   cz + VCH_NIGHT_SUN_DIR.z*D);
+}
+let VCH_NIGHT_HOOKED = false;
+function VCH_NIGHT_hookRender(){
+  if(VCH_NIGHT_HOOKED || typeof Jn === "undefined" || !Jn || !Jn.render) return;
+  const orig = Jn.render.bind(Jn);
+  Jn.render = function(scene, camera){
+    try{ VCH_NIGHT_shadowFollow() }catch(e){}
+    return orig(scene, camera);
+  };
+  VCH_NIGHT_HOOKED = true;
+}
+/* envMapIntensity материалов карты: в 06e он принудительно 1.0 при сборке,
+   а значение ползунка «HDRI на карте» нужно уметь менять на ходу */
+function VCH_NIGHT_mapEnv(){
+  let n = 0;
+  if(typeof VCH_ALEKS === "undefined" || !VCH_ALEKS || !VCH_ALEKS.group) return 0;
+  VCH_ALEKS.group.traverse(o=>{
+    if(!o.isMesh || !o.material) return;
+    const arr = Array.isArray(o.material) ? o.material : [o.material];
+    for(const m of arr){
+      if(m && m.envMapIntensity !== undefined){
+        m.envMapIntensity = VCH_NIGHT.mapEnv; m.needsUpdate = true; n++;
+      }
+    }
+  });
+  return n;
 }
 
 /* --------------------- 5. тёплые фонари у стен/зданий ------------------- */
@@ -514,6 +691,9 @@ function VCH_NIGHT_afterMap(){
     if(typeof VCH_ALEKS === "undefined"){ setTimeout(go,120); return }
     if(VCH_ALEKS.state === "ready"){
       VCH_NIGHT_lights();
+      VCH_NIGHT_hookRender();
+      VCH_NIGHT_shadowFollow();
+      VCH_NIGHT_mapEnv();
       VCH_NIGHT_lamps();
       VCH_FOG_install();
       VCH_NIGHT_GUARD = true;
@@ -526,7 +706,7 @@ function VCH_NIGHT_afterMap(){
 function VCH_NIGHT_guard(){
   if(!VCH_NIGHT_GUARD) return;
   const sun = vSunLight();
-  if(sun && sun.intensity > VCH_NIGHT.moonI*1.05) VCH_NIGHT_lights();
+  if(sun && sun.intensity > VCH_NIGHT.sunI*1.05) VCH_NIGHT_lights();
   if(VCH_ALEKS.scene3 && VCH_ALEKS.scene3.fog){
     const f = VCH_ALEKS.scene3.fog;
     if(f.color && f.color.getHex() !== VCH_NIGHT.fog){ f.color.setHex(VCH_NIGHT.fog); f.density = VCH_NIGHT.fogD }
@@ -562,6 +742,7 @@ function VCH_NIGHT_apply(){
 /* купол пересоздаётся при смене локации/перезапуске (Gw) — возвращаем свой */
 function VCH_NIGHT_tick(){
   try{ VCH_NIGHT_guard() }catch(e){}
+  try{ VCH_NIGHT_shadowFollow() }catch(e){}
   try{ VCH_FOG_update() }catch(e){}
   const now = performance.now();
   if(VCH_FOG.on && VCH_NIGHT_GUARD && now - VCH_FOG_LAST >= 900){ VCH_FOG_LAST = now; VCH_FOG_install() }
@@ -599,12 +780,15 @@ window.__vchNight = {
     if(o && o.fog){ Object.assign(VCH_FOG,o.fog); VCH_FOG_install() }
     /* пересвет/PMREM пересобираем только если тронули свет — иначе сцена на кадр
        остаётся с уничтоженным окружением (чёрный/пустой кадр) */
-    const RELIGHT = ["moonI","moonCol","hemiI","hemiSky","hemiGround","fillI","fillCol",
+    const RELIGHT = ["moonI","moonCol","sunI","hemiI","hemiSky","hemiGround","fillI","fillCol",
                      "exposure","envGain","az","el","fogD","fog","gain","contrast","sharpen",
-                     "tint","zenithDim","sat","stars","moonDisk"];
+                     "tint","zenithDim","sat","stars","moonDisk",
+                     /* task 18 */
+                     "ambI","bounceI","sunDist","sunLift","shadowSpan","shadowBias",
+                     "shadowNormalBias","shadowMap","mapEnv","envW"];
     const need = !!o && Object.keys(o).some(k=>RELIGHT.indexOf(k)>=0 && k!=="fog");
     if(VCH_NIGHT_STATE==="ready"){
-      if(need){ VCH_NIGHT_lights(); VCH_NIGHT_buildEnv() }
+      if(need){ VCH_NIGHT_lights(); VCH_NIGHT_buildEnv(); VCH_NIGHT_mapEnv() }
       VCH_FOG_update()
     }
     return JSON.parse(JSON.stringify(VCH_NIGHT, (k,v)=>k==="data"?undefined:v));
@@ -652,8 +836,14 @@ window.__vchNight = {
     {k:"moonDisk", t:"Диск солнца",          min:0,    max:20.0, step:0.5,  fmt:v=>v.toFixed(1)},
     {k:"envGain",  t:"Окружение (небо IBL)", min:0,    max:2.50, step:0.05, fmt:v=>v.toFixed(2)},
     {k:"moonI",    t:"Солнце",               min:0,    max:4.00, step:0.05, fmt:v=>v.toFixed(2)},
+    {k:"sunI",     t:"Свет и тени",          min:0,    max:16.0, step:0.25, fmt:v=>v.toFixed(2)},
     {k:"hemiI",    t:"Небо (hemi)",          min:0,    max:2.00, step:0.05, fmt:v=>v.toFixed(2)},
     {k:"fillI",    t:"Подсветка (fill)",     min:0,    max:1.50, step:0.02, fmt:v=>v.toFixed(2)},
+    {k:"ambI",     t:"Остат. свет (ambient)",min:0,    max:1.00, step:0.02, fmt:v=>v.toFixed(2)},
+    {k:"bounceI",  t:"Отсвет от грунта",     min:0,    max:1.00, step:0.02, fmt:v=>v.toFixed(2)},
+    {k:"mapEnv",   t:"HDRI на карте",        min:0,    max:2.50, step:0.05, fmt:v=>v.toFixed(2)},
+    {k:"shadowSpan",t:"Охват теней, м",      min:30,   max:150,  step:5,    fmt:v=>v.toFixed(0)},
+    {k:"sunLift",  t:"Высота солнца, °",    min:0,    max:60,   step:1,    fmt:v=>v.toFixed(0)},
     {k:"refl",     t:"Блеск брони",          min:0.10, max:1.50, step:0.02, fmt:v=>v.toFixed(2)},
     {k:"tm",       t:"Мягкий ACES (2-й)",    min:0,    max:1.00, step:0.02, fmt:v=>v.toFixed(2)},
     {k:"contrast", t:"Контраст",             min:0.80, max:1.50, step:0.01, fmt:v=>v.toFixed(2)}
@@ -664,8 +854,11 @@ window.__vchNight = {
     base:VCH_FOG.base, mist:VCH_FOG.mist, scaleH:VCH_FOG.scaleH,
     glow:VCH_FOG.glow, horizon:VCH_FOG.horizon, fogD:VCH_NIGHT.fogD,
     exposure:VCH_NIGHT.exposure, envGain:VCH_NIGHT.envGain, moonI:VCH_NIGHT.moonI,
+    sunI:VCH_NIGHT.sunI,
     gain:VCH_NIGHT.gain, moonDisk:VCH_NIGHT.moonDisk,
     hemiI:VCH_NIGHT.hemiI, fillI:VCH_NIGHT.fillI,
+    ambI:VCH_NIGHT.ambI, bounceI:VCH_NIGHT.bounceI,
+    mapEnv:VCH_NIGHT.mapEnv, shadowSpan:VCH_NIGHT.shadowSpan, sunLift:VCH_NIGHT.sunLift,
     refl:(typeof VCH_REFLECT_GAIN === "number") ? VCH_REFLECT_GAIN : 1,
     tm:GRADE.tm, contrast:GRADE.contrast
   };
@@ -678,8 +871,14 @@ window.__vchNight = {
       case "moonDisk": return VCH_NIGHT.moonDisk;
       case "envGain":  return VCH_NIGHT.envGain;
       case "moonI":    return VCH_NIGHT.moonI;
+      case "sunI":     return VCH_NIGHT.sunI;
       case "hemiI":    return VCH_NIGHT.hemiI;
       case "fillI":    return VCH_NIGHT.fillI;
+      case "ambI":     return VCH_NIGHT.ambI;
+      case "bounceI":  return VCH_NIGHT.bounceI;
+      case "mapEnv":   return VCH_NIGHT.mapEnv;
+      case "shadowSpan": return VCH_NIGHT.shadowSpan;
+      case "sunLift":   return VCH_NIGHT.sunLift;
       case "refl":     return (typeof VCH_REFLECT_GAIN === "number") ? VCH_REFLECT_GAIN : 1;
       case "tm":       return GRADE.tm;
       case "contrast": return GRADE.contrast;
@@ -694,8 +893,14 @@ window.__vchNight = {
       case "moonDisk": VCH_NIGHT.moonDisk = v; break;
       case "envGain":  VCH_NIGHT.envGain = v; break;
       case "moonI":    VCH_NIGHT.moonI = v; break;
+      case "sunI":     VCH_NIGHT.sunI = v; break;
       case "hemiI":    VCH_NIGHT.hemiI = v; break;
       case "fillI":    VCH_NIGHT.fillI = v; break;
+      case "ambI":     VCH_NIGHT.ambI = v; break;
+      case "bounceI":  VCH_NIGHT.bounceI = v; break;
+      case "mapEnv":   VCH_NIGHT.mapEnv = v; break;
+      case "shadowSpan": VCH_NIGHT.shadowSpan = v; break;
+      case "sunLift":   VCH_NIGHT.sunLift = v; break;
       case "refl":     try{ VCH_REFLECT_GAIN = v }catch(e){} break;
       case "tm":       GRADE.tm = v; break;
       case "contrast": GRADE.contrast = v; break;
@@ -715,21 +920,35 @@ window.__vchNight = {
     try{ if(cn) cn.environmentIntensity = VCH_NIGHT.envGain }catch(e){}
     try{
       const sun = (typeof vSunLight === "function") ? vSunLight() : null;
-      if(sun) sun.intensity = VCH_NIGHT.moonI;
+      if(sun) sun.intensity = VCH_NIGHT.sunI;
       const hemi = cn.children.find(o=>o.isHemisphereLight);
       if(hemi) hemi.intensity = VCH_NIGHT.hemiI;
-      let fill = null;
+      for(const o of cn.children) if(o.isAmbientLight) o.intensity = VCH_NIGHT.ambI;
+      let nth = 0;
       for(const o of cn.children){
         if(o.isDirectionalLight && o !== sun){
-          o.intensity = Math.min(o.intensity, VCH_NIGHT.fillI);
-          if(!fill) fill = o;
+          o.intensity = (nth++)===0 ? VCH_NIGHT.fillI : VCH_NIGHT.bounceI;
         }
       }
-      if(fill) fill.intensity = VCH_NIGHT.fillI;
+      /* охват тень-камеры меняет и near/far — переставить свет целиком */
+      if(typeof VCH_NIGHT_lights === "function") VCH_NIGHT_lights();
+      if(typeof VCH_NIGHT_mapEnv === "function") VCH_NIGHT_mapEnv();
     }catch(e){}
+    /* Оттенок/насыщенность/контраст/яркость теперь идут и в окружение (task 18),
+       поэтому панораму для IBL нужно пересчитать. Собираем не на каждое
+       деление ползунка, а по окончании движения — иначе кадр встаёт. */
+    scheduleEnv();
     /* блеск брони — пересчитать наборы материалов */
     try{ for(const M of VCH_MATSETS) if(window.__vchLook && window.__vchLook.reflect) window.__vchLook.reflect(M) }catch(e){}
     applyGrade();
+  }
+  let VCH_ENV_TIMER = 0;
+  function scheduleEnv(){
+    if(VCH_ENV_TIMER) clearTimeout(VCH_ENV_TIMER);
+    VCH_ENV_TIMER = setTimeout(()=>{
+      VCH_ENV_TIMER = 0;
+      try{ if(typeof VCH_NIGHT_buildEnv === "function") VCH_NIGHT_buildEnv() }catch(e){}
+    }, 140);
   }
   function applyGrade(){
     try{
@@ -747,7 +966,7 @@ window.__vchNight = {
   }
   function applyAll(){ applyFog(); applyLight(); }
   function save(){
-    try{ const o={}; for(const p of FOG) o[p.k]=get(p.k); for(const p of LIT) o[p.k]=get(p.k);
+    try{ const o={v:2}; for(const p of FOG) o[p.k]=get(p.k); for(const p of LIT) o[p.k]=get(p.k);
          localStorage.setItem(KEY_STORE, JSON.stringify(o)) }catch(e){}
   }
   /* сохранённые значения (если игрок уже подбирал картинку в браузере) */
@@ -756,7 +975,11 @@ window.__vchNight = {
     if(raw){
       const o = JSON.parse(raw);
       for(const p of FOG) if(typeof o[p.k] === "number" && isFinite(o[p.k])) set(p.k, o[p.k]);
-      for(const p of LIT) if(typeof o[p.k] === "number" && isFinite(o[p.k])) set(p.k, o[p.k]);
+      /* task 18: в записях старее v2 лежат hemi/fill, которые полностью
+         перебивали свет панорамы. Туман из старой записи берём, а свет —
+         новыми значениями (искусственные источники выключены). */
+      if(o.v === 2)
+        for(const p of LIT) if(typeof o[p.k] === "number" && isFinite(o[p.k])) set(p.k, o[p.k]);
     }
   }catch(e){}
 
@@ -1049,6 +1272,6 @@ window.__vchNight = {
   window.__vchFog = window.__vchTune;
   console.log("[sunrise] туман: base "+VCH_FOG.base+", mist "+VCH_FOG.mist+", fogD "+VCH_NIGHT.fogD
     + " | свет: экспозиция "+VCH_NIGHT.exposure+", окружение "+VCH_NIGHT.envGain
-    + ", солнце "+VCH_NIGHT.moonI+", блеск брони "+get("refl")
+    + ", солнце "+VCH_NIGHT.sunI+", блеск брони "+get("refl")
     + " (панель — клавиша F, API — __vchTune)");
 })();
