@@ -156,7 +156,7 @@ async function vchInitScorpion(forceRetry){
     rig.group.position.copy(phys.body.position);
     cn.add(rig.group);
     const tk={id:"scorpion",name:"SCORPION",phys,rig,aim:{},wpn:{ammo:22,ammoMax:22,reload:0,ammoRefill:0},
-              aiEnabled:!0,aiHome:{x:px,z:pz},aiR:9,aiPhase:Math.random()*6.283,aiIdx:0,aiT:0,camScale:1.32,lookY:1.95};
+              aiEnabled:!1,aiHome:{x:px,z:pz},aiR:9,aiPhase:Math.random()*6.283,aiIdx:0,aiT:0,camScale:1.32,lookY:1.95,hp:3,alive:!0};
     VCH_TANKS.push(tk);
     VCH_SCORPION_OK=!0;
     if(VCH_PENDING>0&&VCH_PENDING<VCH_TANKS.length)setActiveTank(VCH_PENDING);

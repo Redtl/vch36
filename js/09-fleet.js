@@ -12,7 +12,7 @@
    ========================================================================== */
 const VCH_TANKS=[];
 let VCH_ACTIVE=null,VCH_PENDING=-1;
-const VCH_OBT={id:"obt",name:"ОБТ «36»",phys:Ce,rig:qt,aim:{},wpn:{},aiEnabled:!0};
+const VCH_OBT={id:"obt",name:"ОБТ «36»",phys:Ce,rig:qt,aim:{},wpn:{},aiEnabled:!1,hp:3,alive:!0};
 VCH_TANKS.push(VCH_OBT);VCH_ACTIVE=VCH_OBT;
 
 function vchSaveState(t){
