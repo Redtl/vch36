@@ -21,7 +21,7 @@ const VCH_RK={
   range:170, lockTime:.8, reload:26, gap:.12,
   ejectT:.42, ejectV:16,
   thrust:1900, burnT:1.6, dryM:10.2, fuelM:4.6, pitchT:1.0, maxGPitch:26, turnRateV:3.4,
-  kDrag:.0058, pn:3.4, maxG:70, turnRate:4.5, fuze:4.2, life:16, blastR:5.5,
+  kDrag:.0058, pn:3.4, maxG:70, turnRate:4.5, fuze:10.0, life:16, blastR:5.5,
   /* навесная траектория: после схода с направляющей ракета уходит вверх и
      выходит на цель сверху. Набор тем сильнее, чем дальше цель; если цель
      ниже точки пуска — горки нет, иначе ракета пролетает над низиной. */
@@ -490,7 +490,7 @@ function vchRocketPick(){
     const ang=Math.acos(Te.clamp(cos,-1,1));
     if(ang>1.05)continue;
     const score=ang*2.2+d/RK.range;
-    if(score<bs){bs=score;best=tk}
+    if(score*0.5<bs){bs=score*0.5;best=tk}  /* танки имеют приоритет над пропсами */
   }
   return best;}
 function vchRocketTargetPos(pr,out){
@@ -685,7 +685,7 @@ function vchRocketStep(r,dt){
       /* защита от «втыкания» в грунт на маршруте (не на конечном участке) */
       const gh=ge(r.pos.x,r.pos.z),alt=r.pos.y-gh;
       if(dist>25&&alt<9&&r.vel.y<0)aCmd.y=Math.max(aCmd.y,-r.vel.y*2.6);
-      if(dist>9&&alt<3.2){
+      if(dist>9&&alt<3.2&&(!tpos||r.pos.distanceTo(tpos)>RK.fuze*1.5)){
         aCmd.y=Math.max(aCmd.y,0);
         aCmd.y+=9.81*1.4;
       }
@@ -735,7 +735,7 @@ function vchRocketStep(r,dt){
     /* --- неконтактный взрыватель --- */
     if(tpos&&r.age>RK.ejectT*.9&&r.pos.distanceTo(tpos)<RK.fuze){
       const nm=r.vel.clone().setLength(1).negate();
-      vchRocketBoom(tpos.clone(),nm,r.target&&r.target.alive?r.target.body:null,1.45);
+      vchRocketBoom(tpos.clone(),nm,r.target&&r.target.alive&&r.target.phys?r.target.phys.body:null,1.45);
       r.alive=!1;return;
     }
     if(r.age>RK.life){
