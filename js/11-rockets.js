@@ -461,10 +461,9 @@ function vchRocketMesh(){
 /* ---- захват цели --------------------------------------------------------- */
 function vchRocketPick(){
   const RK=VCH_RK,rig=RK.rig;
-  if(!rig||!ba)return null;
+  if(!rig)return null;
   rig.group.updateWorldMatrix(!0,!1);
   const base=new P(0,0,0);rig.group.getWorldPosition(base);
-  /* конус захвата — по оси башни: цель выбирается там, куда наведено орудие */
   const q=new gn();
   if(rig.turret)rig.turret.getWorldQuaternion(q);else q.copy(rig.group.quaternion);
   const fwd=new P(0,0,1).applyQuaternion(q);fwd.y=0;
@@ -478,16 +477,27 @@ function vchRocketPick(){
     if(d<6||d>RK.range)continue;
     const cos=(dx*fwd.x+dz*fwd.z)/(d||1);
     const ang=Math.acos(Te.clamp(cos,-1,1));
-    if(ang>1.05)continue;                       /* конус ±60° от оси корпуса */
+    if(ang>1.05)continue;
     const score=ang*2.2+d/RK.range;
     if(score<bs){bs=score;best=pr}
   }
-  return best;
-}
+  if(VCH_TANKS)for(const tk of VCH_TANKS){
+    if(!tk||!tk.alive||!tk.rig||!tk.rig.group)continue;
+    tk.rig.group.getWorldPosition(tp);
+    const dx=tp.x-base.x,dz=tp.z-base.z,d=Math.hypot(dx,dz);
+    if(d<6||d>RK.range)continue;
+    const cos=(dx*fwd.x+dz*fwd.z)/(d||1);
+    const ang=Math.acos(Te.clamp(cos,-1,1));
+    if(ang>1.05)continue;
+    const score=ang*2.2+d/RK.range;
+    if(score<bs){bs=score;best=tk}
+  }
+  return best;}
 function vchRocketTargetPos(pr,out){
-  if(!pr||!pr.mesh)return out.set(0,0,0);
-  pr.mesh.getWorldPosition(out);
-  return out;
+  if(!pr)return out.set(0,0,0);
+  if(pr.mesh){pr.mesh.getWorldPosition(out);return out;}
+  if(pr.rig&&pr.rig.group){pr.rig.group.getWorldPosition(out);return out;}
+  return out.set(0,0,0);
 }
 
 /* ---- пуск ---------------------------------------------------------------- */
@@ -545,12 +555,38 @@ function vchRocketBoom(point,normal,body,scale){
   let direct=null;
   if(body&&ba)direct=ba.find(p=>p.body===body&&p.alive)||null;
   if(direct)ch(direct,point.clone(),(normal&&normal.clone())||new P(0,1,0),1e6);
-  /* осколки и фугасное действие по соседям */
+  /* прямое попадание в танк */
+  if(body&&VCH_TANKS)for(const tk of VCH_TANKS){
+    if(tk&&tk.alive&&tk.phys&&tk.phys.body===body){
+      if(tk.alive){tk.hp-=2;
+        if(tk.hp>0){en.impact(point,(normal&&normal.clone())||new P(0,1,0),1.4,.3);en.spawnDebris(point,.8);an.crush();break}
+        tk.alive=!1;tk.phys.setInput(0,0);en.explosion(tk.phys.body.position,1.5);an.explosion(1.5);
+        /* шаттер танка — разбор на меши */
+        const rig=tk.rig;const root=rig&&rig.group?rig.group:rig;if(root){root.traverse(o=>{if(!o.isMesh)return;const c=o.clone();c.material=o.material;const wp=new P;o.getWorldPosition(wp);c.position.copy(wp);c.quaternion.setFromRotationMatrix(o.matrixWorld);c.castShadow=!0;c.receiveShadow=!0;c.updateMatrixWorld();cn.add(c);});cn.remove(root);}
+        if(tk===VCH_ACTIVE){const oth=VCH_TANKS.find(t=>t!==tk&&t.alive);if(oth){setActiveTank(VCH_TANKS.indexOf(oth))}else{VCH_ACTIVE=null}}
+      }
+      break;
+    }
+  }
+  /* осколки и фугасное действие по соседям (пропы) */
   if(ba)for(const pr of ba){
     if(!pr||!pr.alive||!pr.destructible||pr===direct)continue;
     const d=pr.mesh.position.distanceTo(point);
     if(d<RK.blastR)ch(pr,point.clone(),(normal&&normal.clone())||new P(0,1,0),
                       Math.max(14,110*(1-d/RK.blastR)));
+  }
+  /* фугасное действие по танкам поблизости */
+  if(VCH_TANKS)for(const tk of VCH_TANKS){
+    if(!tk||!tk.alive||!tk.rig||!tk.rig.group)continue;
+    const d=tk.rig.group.position.distanceTo(point);
+    if(d<RK.blastR){
+      const dmg=Math.max(1,Math.floor(3*(1-d/RK.blastR)));
+      tk.hp-=dmg;
+      if(tk.hp>0){en.impact(point,(normal&&normal.clone())||new P(0,1,0),1.4,.3);en.spawnDebris(point,.8);an.crush();continue}
+      tk.alive=!1;tk.phys.setInput(0,0);en.explosion(tk.phys.body.position,1.5);an.explosion(1.5);
+      const rig=tk.rig;const root=rig&&rig.group?rig.group:rig;if(root){root.traverse(o=>{if(!o.isMesh)return;const c=o.clone();c.material=o.material;const wp=new P;o.getWorldPosition(wp);c.position.copy(wp);c.quaternion.setFromRotationMatrix(o.matrixWorld);c.castShadow=!0;c.receiveShadow=!0;c.updateMatrixWorld();cn.add(c);});cn.remove(root);}
+      if(tk===VCH_ACTIVE){const oth=VCH_TANKS.find(t=>t!==tk&&t.alive);if(oth){setActiveTank(VCH_TANKS.indexOf(oth))}else{VCH_ACTIVE=null}}
+    }
   }
   RK.lastHit={x:+point.x.toFixed(1),y:+point.y.toFixed(1),z:+point.z.toFixed(1)};
 }
@@ -568,7 +604,7 @@ function vchRocketStep(r,dt){
     r.age+=h;
     /* --- цель --- */
     let tpos=null,tvel=null,los=null,dist=1e9;
-    if(r.target&&r.target.alive&&r.target.mesh){
+    if(r.target&&r.target.alive&&(r.target.mesh||r.target.rig)){
       tpos=vchRocketTargetPos(r.target,r.hitP);
       r.tlast.copy(tpos);r.tseen=!0;
       const bv=r.target.body&&r.target.body.velocity;
@@ -686,7 +722,7 @@ function vchRocketStep(r,dt){
     if(fl){fl.visible=burning;if(burning)fl.scale.setScalar(.85+Math.random()*.3)}
     /* --- столкновение с миром --- */
     const from=new w(r.prev.x,r.prev.y,r.prev.z),to=new w(r.pos.x,r.pos.y,r.pos.z),res=new Ui();
-    if(vn.physics.raycastClosest(from,to,{collisionFilterMask:is|VCH_RAMP,skipBackfaces:!1},res)){
+    if(vn.physics.raycastClosest(from,to,{collisionFilterMask:is|VCH_RAMP|Bw,skipBackfaces:!1},res)){
       const pt=new P(res.hitPointWorld.x,res.hitPointWorld.y,res.hitPointWorld.z);
       const nm=new P(res.hitNormalWorld.x,res.hitNormalWorld.y,res.hitNormalWorld.z);
       vchRocketBoom(pt,nm,res.body,1.35);r.alive=!1;return;
@@ -766,8 +802,8 @@ function vchRocketHudUpdate(){
     if(RK.hint.textContent!==txt)RK.hint.textContent=txt;
   }
   /* рамка на цели */
-  if(RK.target&&RK.target.alive&&RK.target.mesh&&(RK.held||RK.lock>0)){
-    const p=new P();RK.target.mesh.getWorldPosition(p);p.y+=.7;
+  if(RK.target&&RK.target.alive&&(RK.target.mesh||RK.target.rig)&&(RK.held||RK.lock>0)){
+    const p=new P();(RK.target.mesh||RK.target.rig.group).getWorldPosition(p);p.y+=.7;
     p.project(ye);
     if(p.z<1&&Math.abs(p.x)<1.1&&Math.abs(p.y)<1.1){
       RK.box.style.display="block";
@@ -790,14 +826,20 @@ function vchRocketServo(up){
 
 /* ---- ближайшая ломающаяся цель рядом с точкой ---------------------------- */
 function vchRocketPickNear(pos,rad,skip){
-  if(!ba||!pos)return null;
+  if(!pos)return null;
   let best=null,bd=rad;
   const p=new P();
-  for(const pr of ba){
+  if(ba)for(const pr of ba){
     if(!pr||!pr.alive||!pr.destructible||!pr.mesh||pr===skip)continue;
     pr.mesh.getWorldPosition(p);
     const d=p.distanceTo(pos);
     if(d<bd){bd=d;best=pr}
+  }
+  if(VCH_TANKS)for(const tk of VCH_TANKS){
+    if(!tk||!tk.alive||!tk.rig||!tk.rig.group||tk===skip)continue;
+    tk.rig.group.getWorldPosition(p);
+    const d=p.distanceTo(pos);
+    if(d<bd){bd=d;best=tk}
   }
   return best;
 }
@@ -851,7 +893,7 @@ function vchRocketTick(dt){
   }
   RK.wasHeld=held;
   /* --- угол возвышения установок по дальности до цели --- */
-  if(held&&RK.target&&RK.target.alive&&RK.target.mesh){
+  if(held&&RK.target&&RK.target.alive&&(RK.target.mesh||RK.target.rig)){
     const tp=vchRocketTargetPos(RK.target,RK.tpos);
     const rp=new P();(RK.rig.group||RK.rig.chassis).getWorldPosition(rp);
     const d=Math.hypot(tp.x-rp.x,tp.z-rp.z);
