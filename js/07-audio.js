@@ -368,6 +368,7 @@ function vchTankHit(tk,point,dir,dmg){
 /* разбираем танк на отдельные меши и разбрасываем осколки */
 function vchTankShatter(tk){
   const rig=tk.rig;const root=rig&&rig.group?rig.group:rig;if(!root)return;
+  const center=new P;root.getWorldPosition(center);
   const pieces=[];root.traverse(o=>{
     if(!o.isMesh)return;
     const c=o.clone();c.material=o.material;
@@ -376,15 +377,21 @@ function vchTankShatter(tk){
     const wp=new P;o.getWorldPosition(wp);
     c.position.copy(wp);c.quaternion.setFromRotationMatrix(o.matrixWorld);
     cn.add(c);
-    pieces.push({m:c,vel:new P((Math.random()-.5)*12,Math.random()*10+4,(Math.random()-.5)*12),
-      av:new P((Math.random()-.5)*8,(Math.random()-.5)*8,(Math.random()-.5)*8),life:0});
+    const dir=new P().subVectors(wp,center).normalize();
+    const speed=6+Math.random()*10;
+    pieces.push({m:c,
+      vel:new P(dir.x*speed+(Math.random()-.5)*4,Math.random()*12+6,dir.z*speed+(Math.random()-.5)*4),
+      av:new P((Math.random()-.5)*12,(Math.random()-.5)*12,(Math.random()-.5)*12),
+      life:0,maxLife:2+Math.random()*2});
   });
   cn.remove(root);
   let fr=0;function tick(dt){
     fr+=dt;
     for(const p of pieces){
+      p.life+=dt;const t=Math.min(p.life/p.maxLife,1);
       p.m.position.addScaledVector(p.vel,dt);p.vel.y-=24*dt;
       p.m.rotation.x+=p.av.x*dt;p.m.rotation.y+=p.av.y*dt;p.m.rotation.z+=p.av.z*dt;
+      if(p.m.material){p.m.material.opacity=1-t;p.m.material.transparent=p.m.material.opacity<1;}
       if(p.m.position.y<.1){p.m.position.y=.1;p.vel.set(0,0,0);p.av.set(0,0,0)}
     }
     if(fr<3)requestAnimationFrame(tick)
