@@ -555,8 +555,9 @@ function vchRocketBoom(point,normal,body,scale){
   let direct=null;
   if(body&&ba)direct=ba.find(p=>p.body===body&&p.alive)||null;
   if(direct)ch(direct,point.clone(),(normal&&normal.clone())||new P(0,1,0),1e6);
-  /* прямое попадание в танк */
+  /* прямое попадание в танк (не свой собственный корпус) */
   if(body&&VCH_TANKS)for(const tk of VCH_TANKS){
+    if(tk===VCH_ACTIVE)continue;
     if(tk&&tk.alive&&tk.phys&&tk.phys.body===body){
       if(tk.alive){tk.hp-=2;
         if(tk.hp>0){en.impact(point,(normal&&normal.clone())||new P(0,1,0),1.4,.3);en.spawnDebris(point,.8);an.crush();break}
@@ -575,8 +576,9 @@ function vchRocketBoom(point,normal,body,scale){
     if(d<RK.blastR)ch(pr,point.clone(),(normal&&normal.clone())||new P(0,1,0),
                       Math.max(14,110*(1-d/RK.blastR)));
   }
-  /* фугасное действие по танкам поблизости */
+  /* фугасное действие по танкам поблизости (не по собственному танку) */
   if(VCH_TANKS)for(const tk of VCH_TANKS){
+    if(tk===VCH_ACTIVE)continue;
     if(!tk||!tk.alive||!tk.rig||!tk.rig.group)continue;
     const d=tk.rig.group.position.distanceTo(point);
     if(d<RK.blastR){
