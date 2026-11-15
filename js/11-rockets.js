@@ -559,13 +559,7 @@ function vchRocketBoom(point,normal,body,scale){
   if(body&&VCH_TANKS)for(const tk of VCH_TANKS){
     if(tk===VCH_ACTIVE)continue;
     if(tk&&tk.alive&&tk.phys&&tk.phys.body===body){
-      if(tk.alive){tk.hp-=2;
-        if(tk.hp>0){en.impact(point,(normal&&normal.clone())||new P(0,1,0),1.4,.3);en.spawnDebris(point,.8);an.crush();break}
-        tk.alive=!1;tk.phys.setInput(0,0);en.explosion(tk.phys.body.position,1.5);an.explosion(1.5);
-        /* шаттер танка — разбор на меши */
-        const rig=tk.rig;const root=rig&&rig.group?rig.group:rig;if(root){root.traverse(o=>{if(!o.isMesh)return;const c=o.clone();c.material=o.material;const wp=new P;o.getWorldPosition(wp);c.position.copy(wp);c.quaternion.setFromRotationMatrix(o.matrixWorld);c.castShadow=!0;c.receiveShadow=!0;c.updateMatrixWorld();cn.add(c);});cn.remove(root);}
-        if(tk===VCH_ACTIVE){const oth=VCH_TANKS.find(t=>t!==tk&&t.alive);if(oth){setActiveTank(VCH_TANKS.indexOf(oth))}else{VCH_ACTIVE=null}}
-      }
+      window.vchTankHit(tk,point.clone(),(normal&&normal.clone())||new P(0,1,0),2);
       break;
     }
   }
@@ -583,11 +577,7 @@ function vchRocketBoom(point,normal,body,scale){
     const d=tk.rig.group.position.distanceTo(point);
     if(d<RK.blastR){
       const dmg=Math.max(1,Math.floor(3*(1-d/RK.blastR)));
-      tk.hp-=dmg;
-      if(tk.hp>0){en.impact(point,(normal&&normal.clone())||new P(0,1,0),1.4,.3);en.spawnDebris(point,.8);an.crush();continue}
-      tk.alive=!1;tk.phys.setInput(0,0);en.explosion(tk.phys.body.position,1.5);an.explosion(1.5);
-      const rig=tk.rig;const root=rig&&rig.group?rig.group:rig;if(root){root.traverse(o=>{if(!o.isMesh)return;const c=o.clone();c.material=o.material;const wp=new P;o.getWorldPosition(wp);c.position.copy(wp);c.quaternion.setFromRotationMatrix(o.matrixWorld);c.castShadow=!0;c.receiveShadow=!0;c.updateMatrixWorld();cn.add(c);});cn.remove(root);}
-      if(tk===VCH_ACTIVE){const oth=VCH_TANKS.find(t=>t!==tk&&t.alive);if(oth){setActiveTank(VCH_TANKS.indexOf(oth))}else{VCH_ACTIVE=null}}
+      window.vchTankHit(tk,point.clone(),(normal&&normal.clone())||new P(0,1,0),dmg);
     }
   }
   RK.lastHit={x:+point.x.toFixed(1),y:+point.y.toFixed(1),z:+point.z.toFixed(1)};

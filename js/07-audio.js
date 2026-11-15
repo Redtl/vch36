@@ -330,6 +330,30 @@ hatch(){}
   цепной детонации.
  */
 
+
+ if(r.kind==="barrel"||r.kind==="car"){
+  const i=r.kind==="barrel"?1.5:1.15;
+  en.explosion(t,i),an.explosion(i);
+  if(r.kind==="car"&&Vr)Vr.addSpot(t.x,t.z,ge(t.x,t.z),22);
+  /* цепной подрыв: соседние бочки/машины детонируют волной (60–240 мс),
+     остальные свободные пропсы рядом получают толчок и разлетаются */
+  if(r.kind==="barrel")for(const s of ba){
+   if(!s.alive||s===r||!s.mesh)continue;
+   const dd=s.mesh.position.distanceTo(t);
+   if(dd>7)continue;
+   if(s.kind==="barrel"||s.kind==="car")setTimeout(()=>{s.alive&&ch(s,s.mesh.position.clone(),e,9)},60+Math.random()*180);
+   else if(s.dynamic)vchKnock(s,new P(s.mesh.position.x-t.x,0,s.mesh.position.z-t.z),3.2*(1-dd/7)+.6);
+  }
+ }else{
+  en.impact(t,e.clone().negate(),1.4,.3),an.crush();
+  for(let k=0;k<(r.kind==="crate"?7:4);k++)en.spawnDebris(t,r.kind==="crate"?1.15:.85);
+  if(r.kind==="crate")for(let k=0;k<10;k++)en._get(en.pool).spawn({
+   pos:t.clone().add(new P((Math.random()-.5)*.6,(Math.random()-.5)*.4,(Math.random()-.5)*.6)),
+   vel:new P((Math.random()-.5)*6,1+Math.random()*3.5,(Math.random()-.5)*6),
+   life:.55+Math.random()*.5,size0:.12,size1:.32,color:0x9b7448,drag:2.4,grav:-9,opacity:.75
+  });
+}
+}
 /* урон танку: hp, взрыв и разлёт на меши при уничтожении */
 function vchTankHit(tk,point,dir,dmg){
   if(!tk.alive)return;
@@ -366,30 +390,8 @@ function vchTankShatter(tk){
     if(fr<3)requestAnimationFrame(tick)
   }tick(0)
 }
- if(r.kind==="barrel"||r.kind==="car"){
-  const i=r.kind==="barrel"?1.5:1.15;
-  en.explosion(t,i),an.explosion(i);
-  if(r.kind==="car"&&Vr)Vr.addSpot(t.x,t.z,ge(t.x,t.z),22);
-  /* цепной подрыв: соседние бочки/машины детонируют волной (60–240 мс),
-     остальные свободные пропсы рядом получают толчок и разлетаются */
-  if(r.kind==="barrel")for(const s of ba){
-   if(!s.alive||s===r||!s.mesh)continue;
-   const dd=s.mesh.position.distanceTo(t);
-   if(dd>7)continue;
-   if(s.kind==="barrel"||s.kind==="car")setTimeout(()=>{s.alive&&ch(s,s.mesh.position.clone(),e,9)},60+Math.random()*180);
-   else if(s.dynamic)vchKnock(s,new P(s.mesh.position.x-t.x,0,s.mesh.position.z-t.z),3.2*(1-dd/7)+.6);
-  }
- }else{
-  en.impact(t,e.clone().negate(),1.4,.3),an.crush();
-  for(let k=0;k<(r.kind==="crate"?7:4);k++)en.spawnDebris(t,r.kind==="crate"?1.15:.85);
-  if(r.kind==="crate")for(let k=0;k<10;k++)en._get(en.pool).spawn({
-   pos:t.clone().add(new P((Math.random()-.5)*.6,(Math.random()-.5)*.4,(Math.random()-.5)*.6)),
-   vel:new P((Math.random()-.5)*6,1+Math.random()*3.5,(Math.random()-.5)*6),
-   life:.55+Math.random()*.5,size0:.12,size1:.32,color:0x9b7448,drag:2.4,grav:-9,opacity:.75
-  });
-  window.vchTankHit=vchTankHit;window.vchTankShatter=vchTankShatter;
-}
-}
+window.vchTankHit=vchTankHit;window.vchTankShatter=vchTankShatter;
+
 function lh(){if(J.reload>0||J.ammo<=0){J.ammo<=0&&J.ammoRefill<=0&&an.clank();return}J.ammo--,J.reload=J.reloadTime,an.hatch(),qt.getMuzzle(Ii,ss);   /* 5.4: люк */const r=Ii.clone(),t=ss.clone().normalize();en.muzzleBurst(r,t,qt.getMuzzleBrakepoints(4)),an.fire(),qt.fireRecoil(1),Ce.applyRecoilImpulse(t,1),V_ejectSchedule(),Ls.push(new q1(r.clone().addScaledVector(t,.4),t,1650)),di=Math.min(1.5,di+.55),J.ammo===0&&(J.ammoRefill=8)}const J={started:!1,ammo:22,ammoMax:22,ammoRefill:0,reload:0,reloadTime:4.6,turretYaw:0,elevation:0,aimAzWorld:0,aimEl:0,aimMode:"cursor",cursor:{x:.5,y:.5},aimPoint:null,aimFrames:0,reticle:{x:.5,y:.5,visible:!0},stabilizer:!0,cameraMode:0,zoom:11.5,orbitYaw:0,orbitPitch:-.1,camFollow:0,helpVisible:!0,freezeCam:!1},Wn=new Set,Xs={left:!1,right:!1};window.addEventListener("keydown",r=>{const t=r.code;if(Wn.add(t),t==="Space"&&r.preventDefault(),t==="KeyO"){r.preventDefault(),be.file?.click();return}if(t==="KeyM"){r.preventDefault(),be.root?.classList.toggle("hidden");return}J.started&&(t==="KeyV"&&(J.stabilizer=!J.stabilizer,document.querySelector("#stabilizer").classList.toggle("off",!J.stabilizer),document.querySelector("#stabilizer").textContent=J.stabilizer?"СТАБИЛИЗАТОР ВКЛ":"СТАБИЛИЗАТОР ВЫКЛ",an.clank()),t==="Digit1"&&Pr(0),t==="Digit2"&&Pr(1),t==="Digit3"&&Pr(2),t==="KeyT"&&(J.aimMode=J.aimMode==="cursor"?"mouse":"cursor",J.aimMode==="mouse"?$r.requestPointerLock?.():document.exitPointerLock?.(),J.keyAimT=0,uh(),aimSync(),an.clank()),t==="KeyG"&&(showAimDot=!showAimDot,aimSync(),an.clank()),t==="KeyC"&&(Pr((J.cameraMode+1)%3),an.clank()),t==="KeyH"&&(J.helpVisible=!J.helpVisible,document.querySelector("#help").style.opacity=J.helpVisible?"1":"0"),t==="KeyR"&&VCH_FADE.to(()=>location.reload(),320))});window.addEventListener("keyup",r=>Wn.delete(r.code));let tp=!1;document.addEventListener("pointerlockchange",()=>{tp=document.pointerLockElement===$r});$r.addEventListener("contextmenu",r=>r.preventDefault());/* чувствительность мыши — общий множитель для обзора и наведения */
 let VCH_SENS=1;
 /* ==========================================================================
